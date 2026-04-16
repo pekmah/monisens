@@ -12,21 +12,57 @@ const sections: TransactionSectionData[] = [
   {
     title: "Today",
     data: [
-      { amount: "KES 2,450.00", icon: "coffee" as const, meta: "Dining", title: "Java House" },
-      { amount: "KES 5,200.00", icon: "zap" as const, meta: "Utilities", title: "Kenya Power" },
+      {
+        accent: "#fb923c",
+        amount: "KES 2,450.00",
+        category: "Dining",
+        hint: "Swipe to recategorize",
+        icon: "coffee" as const,
+        time: "12:45 PM",
+        title: "Java House",
+      },
+      {
+        accent: "#60a5fa",
+        amount: "KES 5,200.00",
+        category: "Utilities",
+        icon: "zap" as const,
+        time: "09:12 AM",
+        title: "Kenya Power",
+      },
     ],
   },
   {
     title: "Yesterday",
     data: [
-      { amount: "KES 12,180.00", icon: "shopping-bag" as const, meta: "Groceries", title: "Carrefour" },
+      {
+        accent: "#4ade80",
+        amount: "KES 12,180.00",
+        category: "Groceries",
+        icon: "shopping-bag" as const,
+        time: "06:30 PM",
+        title: "Carrefour",
+      },
     ],
   },
   {
     title: "Earlier This Week",
     data: [
-      { amount: "KES 850.00", icon: "truck" as const, meta: "Transport", title: "Uber Trip" },
-      { amount: "KES 2,500.00", icon: "cpu" as const, meta: "Intelligence", title: "AI Subscription" },
+      {
+        accent: "#a855f7",
+        amount: "KES 850.00",
+        category: "Transport",
+        icon: "truck" as const,
+        time: "Monday",
+        title: "Uber Trip",
+      },
+      {
+        accent: "#7a2faa",
+        amount: "KES 2,500.00",
+        category: "Intelligence",
+        icon: "cpu" as const,
+        time: "Sunday",
+        title: "AI Subscription",
+      },
     ],
   },
 ];

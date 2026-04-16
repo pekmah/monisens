@@ -1,6 +1,11 @@
+export { TransactionListItem } from "./transaction-list-item";
+export type {
+  TransactionListItemData,
+  TransactionListItemProps,
+} from "./transaction-list-item";
+
 export { TransactionSection } from "./transaction-section";
 export type {
-  TransactionItem,
   TransactionSectionData,
   TransactionSectionProps,
 } from "./transaction-section";
