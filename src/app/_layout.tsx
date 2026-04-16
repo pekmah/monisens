@@ -15,6 +15,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import '@/lib/configure-default-fonts';
 import 'react-native-reanimated';
 
+import { ToastProvider } from '@/components/toast';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemeControllerProvider } from '@/lib/theme-controller';
 import { getThemes } from '@/lib/theme';
@@ -61,11 +62,13 @@ function RootNavigator() {
   return (
     <KeyboardProvider>
       <ThemeProvider value={navigationTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style={appTheme.dark ? 'light' : 'dark'} />
+        <ToastProvider>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <StatusBar style={appTheme.dark ? 'light' : 'dark'} />
+        </ToastProvider>
       </ThemeProvider>
     </KeyboardProvider>
   );

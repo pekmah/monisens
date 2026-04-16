@@ -1,16 +1,19 @@
 import { Image } from 'expo-image';
 import { Platform, StyleSheet, Switch } from 'react-native';
 
+import { AppButton } from '@/components/base';
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useToast } from '@/components/toast';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useThemeController } from '@/lib/theme-controller';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
   const theme = useAppTheme();
+  const { showToast } = useToast();
   const { colorScheme, setThemeOverride } = useThemeController();
   const isDark = colorScheme === 'dark';
 
@@ -53,6 +56,62 @@ export default function HomeScreen() {
           }}
           value={isDark}
         />
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Toast checks</ThemedText>
+        <ThemedText darkColor={theme.colors.onSurfaceVariant} lightColor={theme.colors.mutedText}>
+          Trigger stacked floating notifications using the Stitch light and dark palettes.
+        </ThemedText>
+        <ThemedView style={styles.toastGrid}>
+          <AppButton
+            title="Success"
+            onPress={() =>
+              showToast({
+                description: 'Global Holdings Wire Processed',
+                title: 'Payment Complete',
+                variant: 'success',
+              })
+            }
+            style={styles.toastButton}
+          />
+          <AppButton
+            title="Info"
+            variant="secondary"
+            onPress={() =>
+              showToast({
+                description:
+                  'Consider tax-loss harvesting before the end of the month. This may reduce taxable gains while keeping your portfolio allocation aligned with your current strategy.',
+                title: 'Tax Optimization Tip',
+                variant: 'info',
+              })
+            }
+            style={styles.toastButton}
+          />
+          <AppButton
+            title="Warning"
+            variant="ghost"
+            onPress={() =>
+              showToast({
+                description: 'Legacy authentication detected',
+                title: 'Security Update Required',
+                variant: 'warning',
+              })
+            }
+            style={styles.toastButton}
+          />
+          <AppButton
+            title="Error"
+            variant="danger"
+            onPress={() =>
+              showToast({
+                description: 'Insufficient cash balance for purchase',
+                title: 'Transaction Declined',
+                variant: 'error',
+              })
+            }
+            style={styles.toastButton}
+          />
+        </ThemedView>
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
@@ -134,6 +193,15 @@ const styles = StyleSheet.create({
   themeSwitchText: {
     flex: 1,
     gap: 4,
+  },
+  toastButton: {
+    flex: 1,
+    minWidth: 120,
+  },
+  toastGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   reactLogo: {
     height: 178,
