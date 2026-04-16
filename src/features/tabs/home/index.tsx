@@ -1,15 +1,18 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, Switch } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useThemeController } from '@/lib/theme-controller';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
   const theme = useAppTheme();
+  const { colorScheme, setThemeOverride } = useThemeController();
+  const isDark = colorScheme === 'dark';
 
   return (
     <ParallaxScrollView
@@ -26,6 +29,30 @@ export default function HomeScreen() {
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
+      </ThemedView>
+      <ThemedView
+        lightColor={theme.colors.surfaceContainerLowest}
+        darkColor={theme.colors.surfaceContainerHighest}
+        style={styles.themeSwitchCard}>
+        <ThemedView
+          lightColor={theme.colors.surfaceContainerLowest}
+          darkColor={theme.colors.surfaceContainerHighest}
+          style={styles.themeSwitchText}>
+          <ThemedText type="defaultSemiBold">Dark mode</ThemedText>
+          <ThemedText darkColor={theme.colors.onSurfaceVariant} lightColor={theme.colors.mutedText}>
+            Toggle the Stitch light and dark palettes.
+          </ThemedText>
+        </ThemedView>
+        <Switch
+          ios_backgroundColor={theme.colors.surfaceContainerHighest}
+          onValueChange={(value) => setThemeOverride(value ? 'dark' : 'light')}
+          thumbColor={isDark ? theme.colors.primary : theme.colors.surfaceContainerLowest}
+          trackColor={{
+            false: theme.colors.surfaceContainerHighest,
+            true: theme.colors.primaryContainer,
+          }}
+          value={isDark}
+        />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
@@ -95,6 +122,18 @@ const styles = StyleSheet.create({
   stepContainer: {
     gap: 8,
     marginBottom: 8,
+  },
+  themeSwitchCard: {
+    alignItems: 'center',
+    borderRadius: 24,
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  themeSwitchText: {
+    flex: 1,
+    gap: 4,
   },
   reactLogo: {
     height: 178,

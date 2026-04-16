@@ -1,5 +1,5 @@
-import { useColorScheme as useNativeColorScheme } from 'react-native';
+import { useThemeController } from '@/lib/theme-controller';
 
 export function useColorScheme(): 'light' | 'dark' {
-  return useNativeColorScheme() === 'dark' ? 'dark' : 'light';
+  return useThemeController().colorScheme;
 }

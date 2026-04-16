@@ -16,6 +16,7 @@ import '@/lib/configure-default-fonts';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemeControllerProvider } from '@/lib/theme-controller';
 import { getThemes } from '@/lib/theme';
 
 export const unstable_settings = {
@@ -25,8 +26,6 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const { appTheme, navigationTheme } = useMemo(() => getThemes(colorScheme), [colorScheme]);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -40,13 +39,24 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(appTheme.colors.background);
-  }, [appTheme.colors.background]);
-
   if (!fontsLoaded) {
     return null;
   }
+
+  return (
+    <ThemeControllerProvider>
+      <RootNavigator />
+    </ThemeControllerProvider>
+  );
+}
+
+function RootNavigator() {
+  const colorScheme = useColorScheme();
+  const { appTheme, navigationTheme } = useMemo(() => getThemes(colorScheme), [colorScheme]);
+
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(appTheme.colors.background);
+  }, [appTheme.colors.background]);
 
   return (
     <KeyboardProvider>
