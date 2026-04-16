@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { ThemeProvider } from '@react-navigation/native';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -7,15 +7,16 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import '@/lib/configure-default-fonts';
 import 'react-native-reanimated';
 
-import { FontFamilies } from '@/constants/fonts';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getThemes } from '@/lib/theme';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -25,6 +26,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { appTheme, navigationTheme } = useMemo(() => getThemes(colorScheme), [colorScheme]);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -38,33 +40,13 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(appTheme.colors.background);
+  }, [appTheme.colors.background]);
+
   if (!fontsLoaded) {
     return null;
   }
-
-  const baseTheme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
-  const navigationTheme = {
-    ...baseTheme,
-    fonts: {
-      ...baseTheme.fonts,
-      regular: {
-        fontFamily: FontFamilies.regular,
-        fontWeight: '400' as const,
-      },
-      medium: {
-        fontFamily: FontFamilies.medium,
-        fontWeight: '500' as const,
-      },
-      bold: {
-        fontFamily: FontFamilies.bold,
-        fontWeight: '700' as const,
-      },
-      heavy: {
-        fontFamily: FontFamilies.bold,
-        fontWeight: '700' as const,
-      },
-    },
-  };
 
   return (
     <KeyboardProvider>
@@ -73,7 +55,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
-        <StatusBar style="auto" />
+        <StatusBar style={appTheme.dark ? 'light' : 'dark'} />
       </ThemeProvider>
     </KeyboardProvider>
   );

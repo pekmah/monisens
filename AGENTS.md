@@ -31,6 +31,15 @@ This Expo app uses a feature-based architecture modeled after `reemio-app`.
 - Load new Inter weights in `src/app/_layout.tsx` and add them to `src/constants/fonts` before use.
 - Keep React Navigation font configuration and React Native `Text`/`TextInput` defaults aligned with `FontFamilies`.
 
+## Theming
+
+- Use the native React Native styling APIs (`StyleSheet`, inline style arrays, and typed style props). Do not add a UI framework such as NativeWind, Tamagui, Gluestack, or React Native Paper for this project.
+- Keep theme tokens in `src/constants/theme.ts`. Add colors, spacing, radii, typography, and elevation there before using new visual values in components.
+- Source product color tokens from the Stitch `Smart Spend Intelligence` design system unless the user explicitly changes the design direction.
+- Support both light and dark mode for every reusable component. Prefer `useAppTheme()` for full theme access and `useThemeColor()` for one-off color lookups.
+- Avoid 1px divider-first layouts. Follow the Stitch design direction by separating surfaces through tonal background changes, spacing, and subtle outline variants only when accessibility requires it.
+- Keep Inter as the app default even when Stitch reference screens use display-oriented headline fonts.
+
 ## Feature Boundaries
 
 - New user-facing workflows should start as a feature under `src/features`.
