@@ -18,7 +18,6 @@ import {
   TabScreen,
 } from "@/features/tabs/_components";
 import {
-  InsightCard,
   SpendingDonutChart,
   TransactionRow,
 } from "@/features/tabs/dashboard/components";
@@ -135,7 +134,7 @@ export default function DashboardScreen() {
         </SurfaceCard>
 
         <View style={styles.bentoGrid}>
-          <SurfaceCard style={styles.quickInsights} tone="low">
+          {/* <SurfaceCard style={styles.quickInsights} tone="low">
             <View style={styles.sectionHeader}>
               <Feather
                 color={theme.colors.tertiary}
@@ -157,6 +156,28 @@ export default function DashboardScreen() {
               <AppText variant="labelMd">Food</AppText> is your highest expense
               category today.
             </InsightCard>
+          </SurfaceCard> */}
+          <SurfaceCard elevated style={styles.transactionsCard}>
+            <View style={styles.transactionsHeader}>
+              <AppText
+                style={{ fontFamily: font.headerBold }}
+                variant="titleMd"
+              >
+                Recent Transactions
+              </AppText>
+              <Link href="/transactions" asChild>
+                <AppPressable>
+                  <AppText color="primary" variant="labelMd">
+                    View all
+                  </AppText>
+                </AppPressable>
+              </Link>
+            </View>
+            <View style={styles.transactionList}>
+              {recentTransactions.map((transaction) => (
+                <TransactionRow key={transaction.title} {...transaction} />
+              ))}
+            </View>
           </SurfaceCard>
 
           <SurfaceCard style={styles.breakdownCard} tone="low">
@@ -212,26 +233,6 @@ export default function DashboardScreen() {
             </View>
           </SurfaceCard>
         </View>
-
-        <SurfaceCard elevated style={styles.transactionsCard}>
-          <View style={styles.transactionsHeader}>
-            <AppText style={{ fontFamily: font.headerBold }} variant="titleMd">
-              Recent Transactions
-            </AppText>
-            <Link href="/transactions" asChild>
-              <AppPressable>
-                <AppText color="primary" variant="labelMd">
-                  View all
-                </AppText>
-              </AppPressable>
-            </Link>
-          </View>
-          <View style={styles.transactionList}>
-            {recentTransactions.map((transaction) => (
-              <TransactionRow key={transaction.title} {...transaction} />
-            ))}
-          </View>
-        </SurfaceCard>
       </ScrollView>
       <AppPressable
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
