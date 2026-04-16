@@ -1,4 +1,3 @@
-import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
@@ -8,16 +7,11 @@ import { font } from "@/constants/fonts";
 import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
-import type { ComponentProps } from "react";
-
-type FeatherName = ComponentProps<typeof Feather>["name"];
-
 export type TransactionListItemData = {
   accent: string;
   amount: string;
   category: string;
   hint?: string;
-  icon: FeatherName;
   time: string;
   title: string;
 };
@@ -26,10 +20,9 @@ export type TransactionListItemProps = {
   transaction: TransactionListItemData;
 };
 
-export function TransactionListItem({
-  transaction,
-}: TransactionListItemProps) {
+export function TransactionListItem({ transaction }: TransactionListItemProps) {
   const theme = useAppTheme();
+  const initials = getInitials(transaction.title);
 
   return (
     <AppPressable
@@ -50,18 +43,25 @@ export function TransactionListItem({
           { backgroundColor: theme.colors.surfaceContainer },
         ]}
       >
-        <Feather
-          color={theme.colors.onSurfaceVariant}
-          name={transaction.icon}
-          size={Sizes["2xl"]}
-        />
+        <AppText
+          numberOfLines={1}
+          style={[styles.initials, { color: transaction.accent }]}
+          variant="labelMd"
+        >
+          {initials}
+        </AppText>
       </View>
       <View style={styles.copy}>
         <AppText numberOfLines={1} style={styles.title} variant="titleMd">
           {transaction.title}
         </AppText>
         <View style={styles.metaRow}>
-          <AppText color="mutedText" numberOfLines={1} style={styles.time} variant="labelMd">
+          <AppText
+            color="mutedText"
+            numberOfLines={1}
+            style={styles.time}
+            variant="labelMd"
+          >
             {transaction.time}
           </AppText>
           <View style={styles.metaDot} />
@@ -79,13 +79,28 @@ export function TransactionListItem({
           {transaction.amount}
         </AppText>
         {transaction.hint ? (
-          <AppText color="mutedText" numberOfLines={1} style={styles.hint} variant="labelMd">
+          <AppText
+            color="mutedText"
+            numberOfLines={1}
+            style={styles.hint}
+            variant="labelMd"
+          >
             {transaction.hint.toUpperCase()}
           </AppText>
         ) : null}
       </View>
     </AppPressable>
   );
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 const styles = StyleSheet.create({
@@ -125,6 +140,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     lineHeight: Sizes.lg,
     textAlign: "right",
+    fontFamily: font.medium,
   },
   icon: {
     alignItems: "center",
@@ -132,6 +148,12 @@ const styles = StyleSheet.create({
     height: Sizes["9xl"],
     justifyContent: "center",
     width: Sizes["9xl"],
+  },
+  initials: {
+    fontFamily: font.headerBold,
+    fontSize: FontSizes.md,
+    letterSpacing: 0.4,
+    lineHeight: Sizes["2xl"],
   },
   item: {
     alignItems: "center",
@@ -157,10 +179,11 @@ const styles = StyleSheet.create({
   time: {
     fontSize: FontSizes.sm,
     lineHeight: Sizes.lg,
+    fontFamily: font.regular,
   },
   title: {
-    fontFamily: font.headerSemiBold,
-    fontSize: FontSizes.lg,
+    fontFamily: font.medium,
+    fontSize: FontSizes.md,
     lineHeight: Sizes["2xl"],
   },
 });

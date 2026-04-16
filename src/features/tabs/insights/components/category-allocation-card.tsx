@@ -1,11 +1,12 @@
 import { StyleSheet, View } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
-import { Spacing } from "@/constants/theme";
+import { font } from "@/constants/fonts";
+import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { ProgressBar, SurfaceCard } from "@/features/tabs/_components";
-import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type Allocation = {
+  color: string;
   label: string;
   value: number;
 };
@@ -17,30 +18,25 @@ export type CategoryAllocationCardProps = {
 export function CategoryAllocationCard({
   allocations,
 }: CategoryAllocationCardProps) {
-  const theme = useAppTheme();
-
   return (
     <SurfaceCard style={styles.card}>
-      <View style={styles.titleRow}>
-        <AppText variant="titleMd">Category Allocation</AppText>
-        <AppText color="mutedText" variant="labelMd">
-          DAILY BURN KES 1,500
-        </AppText>
-      </View>
+      <AppText style={styles.title} variant="titleMd">
+        Category Allocation
+      </AppText>
       {allocations.map((item) => (
         <View key={item.label} style={styles.allocation}>
           <View style={styles.allocationHeader}>
-            <AppText variant="bodyMd">{item.label}</AppText>
-            <AppText variant="labelMd">{item.value}%</AppText>
+            <View style={styles.labelRow}>
+              <View style={[styles.dot, { backgroundColor: item.color }]} />
+              <AppText style={styles.label} variant="bodyMd">
+                {item.label}
+              </AppText>
+            </View>
+            <AppText style={styles.value} variant="labelMd">
+              {item.value}%
+            </AppText>
           </View>
-          <ProgressBar
-            color={
-              item.label === "Food & Drink"
-                ? theme.colors.primary
-                : theme.colors.secondary
-            }
-            progress={item.value}
-          />
+          <ProgressBar color={item.color} progress={item.value} />
         </View>
       ))}
     </SurfaceCard>
@@ -52,15 +48,35 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   allocationHeader: {
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
   },
   card: {
-    gap: Spacing.lg,
+    gap: Spacing.xl,
+    padding: Sizes["3xl"],
   },
-  titleRow: {
+  dot: {
+    borderRadius: Radii.full,
+    height: Sizes.sm,
+    width: Sizes.sm,
+  },
+  label: {
+    fontFamily: font.semiBold,
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.sm,
+  },
+  labelRow: {
     alignItems: "center",
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  title: {
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.xl,
+  },
+  value: {
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.xs,
   },
 });

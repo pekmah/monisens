@@ -4,7 +4,8 @@ import { StyleSheet, View } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
-import { Radii, Sizes, Spacing } from "@/constants/theme";
+import { font } from "@/constants/fonts";
+import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export function DetailHeader() {
@@ -23,9 +24,11 @@ export function DetailHeader() {
       </AppPressable>
       <View>
         <AppText color="mutedText" style={styles.eyebrow} variant="labelMd">
-          INTELLIGENCE
+          TRANSACTION
         </AppText>
-        <AppText variant="titleMd">Transaction Detail</AppText>
+        <AppText style={styles.title} variant="titleMd">
+          Receipt details
+        </AppText>
       </View>
     </View>
   );
@@ -35,17 +38,22 @@ const styles = StyleSheet.create({
   back: {
     alignItems: "center",
     borderRadius: Radii.full,
-    height: Sizes["6xl"],
+    height: Sizes["8xl"],
     justifyContent: "center",
-    width: Sizes["6xl"],
+    width: Sizes["8xl"],
   },
   eyebrow: {
-    letterSpacing: 2,
+    fontSize: FontSizes.xs,
+    letterSpacing: 1.2,
+    lineHeight: LineHeights.xs,
   },
   header: {
     alignItems: "center",
     flexDirection: "row",
     gap: Spacing.md,
     marginBottom: Spacing.xs,
+  },
+  title: {
+    fontFamily: font.headerSemiBold,
   },
 });

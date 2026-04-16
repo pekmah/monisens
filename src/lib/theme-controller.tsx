@@ -39,7 +39,7 @@ export function ThemeControllerProvider({ children }: PropsWithChildren) {
       setThemeOverride,
       systemColorScheme,
       themeOverride,
-      toggleTheme: () => setThemeOverride((current) => (current === 'dark' ? 'light' : 'dark')),
+      toggleTheme: () => setThemeOverride(colorScheme === 'dark' ? 'light' : 'dark'),
     }),
     [colorScheme, systemColorScheme, themeOverride]
   );

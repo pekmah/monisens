@@ -46,7 +46,7 @@ export function SurfaceCard({
         styles.card,
         {
           backgroundColor,
-          borderRadius: theme.radii.xl,
+          borderRadius: theme.radii.lg,
         },
         elevated ? theme.elevation.ambient : undefined,
         style,

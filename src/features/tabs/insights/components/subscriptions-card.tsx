@@ -1,41 +1,135 @@
 import { StyleSheet, View } from "react-native";
 
-import { AppButton } from "@/components/base";
+import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
-import { Spacing } from "@/constants/theme";
-import { RowItem, SurfaceCard } from "@/features/tabs/_components";
+import { font } from "@/constants/fonts";
+import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import { SurfaceCard } from "@/features/tabs/_components";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
-type RowItemProps = Parameters<typeof RowItem>[0];
-
-export type Subscription = Pick<RowItemProps, "amount" | "icon" | "meta" | "title">;
+export type Subscription = {
+  accent: string;
+  amount: string;
+  meta: string;
+  title: string;
+};
 
 export type SubscriptionsCardProps = {
   subscriptions: Subscription[];
 };
 
 export function SubscriptionsCard({ subscriptions }: SubscriptionsCardProps) {
+  const theme = useAppTheme();
+
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.titleRow}>
-        <AppText variant="titleMd">Subscriptions</AppText>
-        <AppButton title="Manage All" variant="ghost" />
+        <AppText style={styles.title} variant="titleMd">
+          Subscriptions
+        </AppText>
+        <AppPressable>
+          <AppText color="secondary" style={styles.manage} variant="labelMd">
+            Manage All
+          </AppText>
+        </AppPressable>
       </View>
       {subscriptions.map((subscription) => (
-        <RowItem
-          amount={subscription.amount}
-          icon={subscription.icon}
-          key={subscription.title}
-          meta={subscription.meta}
-          title={subscription.title}
-        />
+        <View key={subscription.title} style={styles.row}>
+          <View
+            style={[
+              styles.logoTile,
+              {
+                backgroundColor: theme.colors.surfaceContainer,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+          >
+            <AppText
+              style={[styles.logoText, { color: subscription.accent }]}
+              variant="labelMd"
+            >
+              {getInitials(subscription.title)}
+            </AppText>
+          </View>
+          <View style={styles.copy}>
+            <AppText style={styles.subscriptionTitle} variant="labelMd">
+              {subscription.title}
+            </AppText>
+            <AppText color="mutedText" style={styles.meta} variant="bodyMd">
+              {subscription.meta}
+            </AppText>
+          </View>
+          <AppText style={styles.amount} variant="labelMd">
+            {subscription.amount}
+          </AppText>
+        </View>
       ))}
     </SurfaceCard>
   );
 }
 
+function getInitials(title: string) {
+  return title
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+}
+
 const styles = StyleSheet.create({
+  amount: {
+    fontFamily: font.bold,
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.sm,
+  },
   card: {
-    gap: Spacing.lg,
+    gap: Spacing.md,
+    padding: Sizes["3xl"],
+  },
+  copy: {
+    flex: 1,
+    gap: Sizes.xxs,
+    minWidth: 0,
+  },
+  logoText: {
+    fontFamily: font.headerBold,
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.xs,
+  },
+  logoTile: {
+    alignItems: "center",
+    borderRadius: Radii.full,
+    borderWidth: Sizes.hairline,
+    height: Sizes["8xl"],
+    justifyContent: "center",
+    width: Sizes["8xl"],
+  },
+  manage: {
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.xs,
+  },
+  meta: {
+    fontSize: FontSizes.xs,
+    lineHeight: LineHeights.xs,
+  },
+  row: {
+    alignItems: "center",
+    borderRadius: Radii.lg,
+    flexDirection: "row",
+    gap: Spacing.md,
+    minHeight: Sizes["11xl"],
+    paddingVertical: Spacing.sm,
+  },
+  subscriptionTitle: {
+    fontFamily: font.semiBold,
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.sm,
+  },
+  title: {
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.xl,
   },
   titleRow: {
     alignItems: "center",

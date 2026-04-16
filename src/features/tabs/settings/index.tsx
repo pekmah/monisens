@@ -3,6 +3,9 @@ import { ScrollView, StyleSheet } from "react-native";
 import { Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
+  AppearanceCard,
+  BackupCard,
+  DataControlsCard,
   SettingsFooter,
   SettingsGroupCard,
   SettingsIntroCard,
@@ -12,14 +15,16 @@ import {
 const groups: SettingsGroup[] = [
   {
     icon: "shield" as const,
+    tone: "tertiary" as const,
     title: "Security",
     rows: [
       { meta: "Require PIN or Biometrics", title: "App Lock", toggle: true },
-      { meta: "Change Access PIN", title: "Access PIN" },
+      { actionLabel: "Change Access PIN", meta: "Update your private access code", title: "Access PIN" },
     ],
   },
   {
     icon: "refresh-cw" as const,
+    tone: "primary" as const,
     title: "Connectivity",
     rows: [
       { meta: "Auto-parse bank messages", title: "Sync SMS", toggle: true },
@@ -27,24 +32,6 @@ const groups: SettingsGroup[] = [
         meta: "Disable cloud processing",
         title: "Local-only Mode",
         toggle: false,
-      },
-    ],
-  },
-  {
-    icon: "database" as const,
-    title: "Data Management",
-    rows: [
-      {
-        meta: "Remove historical data to save space or protect privacy.",
-        title: "Storage Cleanup",
-      },
-      {
-        meta: "Help us improve by flagging errors in AI categorization.",
-        title: "Quality Control",
-      },
-      {
-        meta: "Last backup today at 04:12 AM. Data is encrypted end-to-end.",
-        title: "Secure Backups",
       },
     ],
   },
@@ -58,9 +45,12 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <SettingsIntroCard />
+        <AppearanceCard />
         {groups.map((group) => (
           <SettingsGroupCard group={group} key={group.title} />
         ))}
+        <DataControlsCard />
+        <BackupCard />
         <SettingsFooter />
       </ScrollView>
     </TabScreen>
@@ -69,7 +59,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: Spacing.lg,
+    gap: Spacing.xl,
     paddingBottom: Sizes["15xl"] + Spacing.sm,
   },
 });

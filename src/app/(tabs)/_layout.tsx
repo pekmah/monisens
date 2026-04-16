@@ -155,17 +155,18 @@ function TabIcon({
       [0, 1],
       ["rgba(0,0,0,0)", activeBackground],
     ),
-    opacity: 0.72 + progress.value * 0.28,
+    opacity: progress.value,
     transform: [
-      { scaleX: 0.72 + progress.value * 0.28 },
-      { scaleY: 0.9 + progress.value * 0.1 },
+      { scaleX: 0.35 + progress.value * 0.65 },
+      { scaleY: 0.82 + progress.value * 0.18 },
     ],
   }));
 
   return (
-    <Animated.View style={[styles.iconShell, animatedStyle]}>
+    <View style={styles.iconShell}>
+      <Animated.View style={[styles.iconBackground, animatedStyle]} />
       <Feather color={color} name={name} size={size} />
-    </Animated.View>
+    </View>
   );
 }
 
@@ -228,7 +229,12 @@ const styles = StyleSheet.create({
     borderRadius: Radii.full,
     height: Sizes["6xl"],
     justifyContent: "center",
+    overflow: "hidden",
     width: Sizes["7xl"],
+  },
+  iconBackground: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: Radii.full,
   },
   labelShell: {
     alignItems: "center",

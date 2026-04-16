@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet } from "react-native";
 
-import { Sizes, Spacing } from "@/constants/theme";
+import { Sizes } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
   TransactionSection,
@@ -17,7 +17,6 @@ const sections: TransactionSectionData[] = [
         amount: "KES 2,450.00",
         category: "Dining",
         hint: "Swipe to recategorize",
-        icon: "coffee" as const,
         time: "12:45 PM",
         title: "Java House",
       },
@@ -25,7 +24,6 @@ const sections: TransactionSectionData[] = [
         accent: "#60a5fa",
         amount: "KES 5,200.00",
         category: "Utilities",
-        icon: "zap" as const,
         time: "09:12 AM",
         title: "Kenya Power",
       },
@@ -38,7 +36,6 @@ const sections: TransactionSectionData[] = [
         accent: "#4ade80",
         amount: "KES 12,180.00",
         category: "Groceries",
-        icon: "shopping-bag" as const,
         time: "06:30 PM",
         title: "Carrefour",
       },
@@ -51,7 +48,6 @@ const sections: TransactionSectionData[] = [
         accent: "#a855f7",
         amount: "KES 850.00",
         category: "Transport",
-        icon: "truck" as const,
         time: "Monday",
         title: "Uber Trip",
       },
@@ -59,7 +55,6 @@ const sections: TransactionSectionData[] = [
         accent: "#7a2faa",
         amount: "KES 2,500.00",
         category: "Intelligence",
-        icon: "cpu" as const,
         time: "Sunday",
         title: "AI Subscription",
       },
@@ -70,7 +65,10 @@ const sections: TransactionSectionData[] = [
 export default function TransactionsScreen() {
   return (
     <TabScreen>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <TransactionsToolbar />
         {sections.map((section) => (
           <TransactionSection key={section.title} section={section} />
@@ -83,6 +81,6 @@ export default function TransactionsScreen() {
 const styles = StyleSheet.create({
   content: {
     gap: Sizes.xl,
-    paddingBottom: Sizes["15xl"] + Spacing.sm,
+    paddingBottom: Sizes["xl"],
   },
 });

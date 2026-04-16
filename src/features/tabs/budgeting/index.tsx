@@ -9,9 +9,46 @@ import {
 } from "@/features/tabs/budgeting/components";
 
 const categories = [
-  { label: 'Housing & Rent', meta: 'Fixed Expense', spent: 'KES 20,000 / KES 20,000', status: 'Paid', value: 100 },
-  { label: 'Food & Dining', meta: 'Variable', spent: 'KES 7,400 / KES 12,000', status: 'KES 4,600 left', value: 61 },
-  { label: 'Transport', meta: 'Commute', spent: 'KES 4,600 / KES 5,000', status: 'KES 400 left', value: 92 },
+  {
+    accent: "#0d631b",
+    budget: "KES 20,000",
+    label: "Housing & Rent",
+    meta: "Fixed expense",
+    remaining: "Settled",
+    spent: "KES 20,000",
+    status: "Paid",
+    value: 100,
+  },
+  {
+    accent: "#ff9800",
+    budget: "KES 12,000",
+    label: "Food & Dining",
+    meta: "Variable spend",
+    remaining: "KES 4,600 left",
+    spent: "KES 7,400",
+    status: "On track",
+    value: 61,
+  },
+  {
+    accent: "#005db7",
+    budget: "KES 5,000",
+    label: "Transport",
+    meta: "Commute",
+    remaining: "KES 400 left",
+    spent: "KES 4,600",
+    status: "Watch",
+    value: 92,
+  },
+  {
+    accent: "#7a2faa",
+    budget: "KES 8,000",
+    label: "Utilities",
+    meta: "Bills and tokens",
+    remaining: "KES 3,200 left",
+    spent: "KES 4,800",
+    status: "Healthy",
+    value: 60,
+  },
 ];
 
 export default function BudgetingScreen() {

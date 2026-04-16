@@ -1,6 +1,8 @@
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import { Sizes, Spacing } from "@/constants/theme";
+import { AppText } from "@/components/base/app-text";
+import { font } from "@/constants/fonts";
+import { FontSizes, LineHeights, Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
   CategoryAllocationCard,
@@ -10,25 +12,53 @@ import {
 } from "@/features/tabs/insights/components";
 
 const allocations = [
-  { label: "Food & Drink", value: 42 },
-  { label: "Transport", value: 28 },
-  { label: "Entertainment", value: 15 },
-  { label: "Utilities", value: 15 },
+  { color: "#fb923c", label: "Food & Drink", value: 42 },
+  { color: "#3b82f6", label: "Transport", value: 28 },
+  { color: "#a855f7", label: "Entertainment", value: 15 },
+  { color: "#22c55e", label: "Utilities", value: 15 },
 ];
 
 const subscriptions = [
-  { amount: "KES 1,200", icon: "film" as const, meta: "Due in 3 days", title: "Netflix Premium" },
-  { amount: "KES 950", icon: "music" as const, meta: "Due in 12 days", title: "Spotify Family" },
-  { amount: "KES 400", icon: "hard-drive" as const, meta: "Due in 15 days", title: "Google One 2TB" },
+  {
+    accent: "#e11d48",
+    amount: "KES 1,200",
+    meta: "Due in 3 days",
+    title: "Netflix Premium",
+  },
+  {
+    accent: "#16a34a",
+    amount: "KES 950",
+    meta: "Due in 12 days",
+    title: "Spotify Family",
+  },
+  {
+    accent: "#2563eb",
+    amount: "KES 400",
+    meta: "Due in 15 days",
+    title: "Google One 2TB",
+  },
 ];
 
 export default function InsightsScreen() {
   return (
     <TabScreen>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.hero}>
+          <AppText color="primary" style={styles.overline} variant="labelMd">
+            PORTFOLIO INSIGHTS
+          </AppText>
+          <AppText style={styles.title} variant="displayLg">
+            Financial Trajectory
+          </AppText>
+        </View>
         <TrajectoryCard />
-        <SpendingAlertCard />
-        <CategoryAllocationCard allocations={allocations} />
+        <View style={styles.insightGrid}>
+          <SpendingAlertCard />
+          <CategoryAllocationCard allocations={allocations} />
+        </View>
         <SubscriptionsCard subscriptions={subscriptions} />
       </ScrollView>
     </TabScreen>
@@ -37,7 +67,25 @@ export default function InsightsScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: Spacing.lg,
+    gap: Spacing.xl,
     paddingBottom: Sizes["15xl"] + Spacing.sm,
+  },
+  hero: {
+    gap: Sizes.xs,
+    paddingTop: Spacing.sm,
+  },
+  insightGrid: {
+    gap: Spacing.lg,
+  },
+  overline: {
+    fontFamily: font.bold,
+    fontSize: FontSizes.xs,
+    letterSpacing: 1.2,
+    lineHeight: LineHeights.xs,
+  },
+  title: {
+    fontFamily: font.headerBold,
+    fontSize: FontSizes["3xl"],
+    lineHeight: LineHeights["4xl"],
   },
 });

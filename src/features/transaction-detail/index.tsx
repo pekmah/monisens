@@ -13,16 +13,17 @@ import {
 } from "@/features/transaction-detail/components";
 
 const metaRows: MetaRow[] = [
-  { label: "Status", value: "Completed" },
+  { label: "Status", tone: "success", value: "Completed" },
   { label: "Source", value: "SMS (M-PESA)" },
-  { label: "Timestamp", value: "Oct 24, 2023 • 14:32 PM" },
+  { label: "Timestamp", value: "Oct 24, 2023, 2:32 PM" },
   { label: "Location", value: "Nairobi, Kenya" },
+  { label: "Reference", value: "MPESA QK72XK9J4" },
 ];
 
 export default function TransactionDetailScreen() {
   return (
     <TabScreen>
-      <Tabs.Screen options={{ headerShown: true }} />
+      <Tabs.Screen options={{ headerShown: false }} />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

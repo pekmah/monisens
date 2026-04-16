@@ -1,24 +1,40 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
-import { Spacing } from "@/constants/theme";
-import { SurfaceCard } from "@/features/tabs/_components";
+import { font } from "@/constants/fonts";
+import { FontSizes, LineHeights, Sizes, Spacing } from "@/constants/theme";
 
 export function SettingsIntroCard() {
   return (
-    <SurfaceCard style={styles.card} tone="primary">
-      <AppText color="onPrimary" variant="headlineSm">
+    <View style={styles.header}>
+      <AppText color="primary" style={styles.overline} variant="labelMd">
+        CONFIGURATION
+      </AppText>
+      <AppText style={styles.title} variant="headlineSm">
         Settings & Privacy
       </AppText>
-      <AppText color="onPrimary" variant="bodyMd">
+      <AppText color="mutedText" style={styles.description} variant="bodyMd">
         Tailor your intelligence experience and manage your financial data footprint.
       </AppText>
-    </SurfaceCard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  description: {
+    maxWidth: Sizes["20xl"] + Sizes["10xl"],
+  },
+  header: {
     gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
+  overline: {
+    fontFamily: font.bold,
+    fontSize: FontSizes.xs,
+    letterSpacing: 1.2,
+    lineHeight: LineHeights.xs,
+  },
+  title: {
+    fontFamily: font.headerBold,
   },
 });
