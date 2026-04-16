@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
+import { font } from "@/constants/fonts";
 import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
@@ -29,55 +30,113 @@ export function TransactionRow({
 }: TransactionRowProps) {
   const theme = useAppTheme();
   const isIncome = amount.startsWith("+");
+  const amountColor = isIncome ? theme.colors.primary : theme.colors.text;
 
   return (
-    <AppPressable style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: bg }]}>
-        <Feather color={accent} name={icon} size={21} />
+    <AppPressable
+      style={[
+        styles.row,
+        {
+          backgroundColor: theme.colors.surfaceContainerLowest,
+          borderColor: theme.colors.outlineVariant,
+        },
+      ]}
+    >
+      <View style={[styles.iconWrap, { backgroundColor: bg }]}>
+        <Feather color={accent} name={icon} size={Sizes["2xl"]} />
       </View>
-      <View style={[styles.copy, { borderLeftColor: accent }]}>
-        <AppText variant="titleMd">{title}</AppText>
-        <AppText color="mutedText" variant="labelMd">
-          {meta}
+      <View style={[styles.accentBar, { backgroundColor: accent }]} />
+      <View style={styles.copy}>
+        <AppText numberOfLines={1} style={styles.title} variant="titleMd">
+          {title}
         </AppText>
+        <View style={styles.detailsRow}>
+          <AppText
+            color="mutedText"
+            numberOfLines={1}
+            style={styles.meta}
+            variant="labelMd"
+          >
+            {meta}
+          </AppText>
+          <View style={styles.detailDivider} />
+          <View
+            style={{
+              flex: 1,
+              minWidth: Sizes.none,
+              flexDirection: "row",
+              justifyContent: "flex-end",
+            }}
+          >
+            <AppText
+              numberOfLines={1}
+              style={[styles.amount, { color: amountColor }]}
+              variant="labelMd"
+            >
+              {amount}
+            </AppText>
+          </View>
+        </View>
       </View>
-      <AppText
-        style={[
-          styles.amount,
-          { color: isIncome ? theme.colors.primary : theme.colors.text },
-        ]}
-        variant="titleMd"
-      >
-        {amount}
-      </AppText>
     </AppPressable>
   );
 }
 
 const styles = StyleSheet.create({
+  accentBar: {
+    alignSelf: "stretch",
+    borderRadius: Radii.full,
+    marginVertical: "auto",
+    width: Sizes.xs,
+    height: Sizes["6xl"],
+  },
   amount: {
-    fontSize: FontSizes.lg,
-    fontWeight: "700",
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.md,
   },
   copy: {
-    borderLeftWidth: 4,
     flex: 1,
-    gap: Sizes.xxs,
-    paddingLeft: Sizes.md + Sizes.xxs,
+    gap: Sizes.xs,
+    minWidth: Sizes.none,
   },
-  icon: {
+  detailDivider: {
+    backgroundColor: "rgba(112,122,108,0.35)",
+    borderRadius: Radii.full,
+    height: Sizes.xs,
+    width: Sizes.xs,
+  },
+  detailsRow: {
     alignItems: "center",
-    borderRadius: Radii.md + Sizes.xxs,
-    height: Sizes["9xl"],
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Sizes.xs,
+  },
+  iconWrap: {
+    alignItems: "center",
+    borderRadius: Radii.lg,
+    height: Sizes["10xl"],
     justifyContent: "center",
-    width: Sizes["9xl"],
+    overflow: "hidden",
+    width: Sizes["10xl"],
+  },
+  meta: {
+    fontSize: FontSizes.sm,
+    lineHeight: Sizes.lg,
+    fontFamily: font.regular,
   },
   row: {
     alignItems: "center",
-    borderRadius: Sizes.xl,
+    borderRadius: Radii.xl,
+    borderWidth: Sizes.hairline,
     flexDirection: "row",
-    gap: Sizes.md + Sizes.xxs,
-    minHeight: Sizes["13xl"] - Sizes.xs,
+    gap: Spacing.md,
+    minHeight: Sizes["13xl"],
     paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  title: {
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.md,
+    lineHeight: Sizes["2xl"],
   },
 });

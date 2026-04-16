@@ -189,11 +189,22 @@ export default function DashboardScreen() {
                         { backgroundColor: item.color },
                       ]}
                     />
-                    <View>
-                      <AppText color="mutedText" variant="labelMd">
+                    <View style={styles.legendCopy}>
+                      <AppText
+                        color="mutedText"
+                        numberOfLines={1}
+                        style={styles.legendLabel}
+                        variant="labelMd"
+                      >
                         {item.label}
                       </AppText>
-                      <AppText variant="labelMd">{item.value}</AppText>
+                      <AppText
+                        numberOfLines={1}
+                        style={styles.legendValue}
+                        variant="labelMd"
+                      >
+                        {item.value}
+                      </AppText>
                     </View>
                   </View>
                 ))}
@@ -256,17 +267,17 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: Spacing.xl,
-    paddingBottom: Sizes["14xl"] + Sizes["9xl"],
+    paddingBottom: Spacing.xl,
   },
   fab: {
     alignItems: "center",
     borderRadius: Radii.full,
-    bottom: Sizes["14xl"],
+    bottom: Spacing.sm,
     elevation: 12,
     height: Sizes["11xl"],
     justifyContent: "center",
     position: "absolute",
-    right: Spacing.xl,
+    right: Spacing.lg,
     shadowColor: "#0d631b",
     shadowOffset: { width: Sizes.none, height: Sizes.sm + Sizes.xxs },
     shadowOpacity: 0.28,
@@ -306,21 +317,36 @@ const styles = StyleSheet.create({
     top: -(Sizes["13xl"] - Sizes.sm),
     width: Sizes["19xl"],
   },
-  legendDot: {
-    borderRadius: Sizes.sm - Sizes.xxs,
-    height: Sizes.md,
-    width: Sizes.md,
+  legendCopy: {
+    flex: 1,
+    gap: Sizes.xxs,
+    minWidth: Sizes.none,
   },
   legendGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.lg,
   },
+  legendDot: {
+    borderRadius: Radii.full,
+    height: Sizes.md,
+    width: Sizes.md,
+  },
   legendItem: {
     alignItems: "center",
     flexBasis: "45%",
     flexDirection: "row",
-    gap: Spacing.md,
+    gap: Spacing.sm,
+    minWidth: Sizes.none,
+  },
+  legendLabel: {
+    fontSize: FontSizes.sm,
+    lineHeight: Sizes.lg,
+  },
+  legendValue: {
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.md,
+    lineHeight: Sizes["2xl"],
   },
   monthPill: {
     borderRadius: Radii.full,
@@ -347,11 +373,12 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   transactionList: {
-    gap: Sizes.xxs,
+    gap: Spacing.sm,
   },
   transactionsCard: {
     borderRadius: Radii["2xl"],
-    padding: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
   },
   transactionsHeader: {
     alignItems: "center",
