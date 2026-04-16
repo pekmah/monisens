@@ -1,12 +1,19 @@
-import { ActivityIndicator, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 
-import { AppPressable } from '@/components/base/app-pressable';
-import { AppText } from '@/components/base/app-text';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { AppPressable } from "@/components/base/app-pressable";
+import { AppText } from "@/components/base/app-text";
+import { Sizes, Spacing } from "@/constants/theme";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
-export type AppButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type AppButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-export type AppButtonProps = Omit<PressableProps, 'children' | 'style'> & {
+export type AppButtonProps = Omit<PressableProps, "children" | "style"> & {
   fullWidth?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -20,25 +27,25 @@ export function AppButton({
   loading,
   style,
   title,
-  variant = 'primary',
+  variant = "primary",
   ...props
 }: AppButtonProps) {
   const theme = useAppTheme();
   const isDisabled = disabled || loading;
   const backgroundColor =
-    variant === 'primary'
+    variant === "primary"
       ? theme.colors.primary
-      : variant === 'danger'
+      : variant === "danger"
         ? theme.colors.error
-        : variant === 'secondary'
+        : variant === "secondary"
           ? theme.colors.surfaceContainerHighest
-          : 'transparent';
+          : "transparent";
   const color =
-    variant === 'primary'
+    variant === "primary"
       ? theme.colors.onPrimary
-      : variant === 'danger'
+      : variant === "danger"
         ? theme.colors.onError
-        : variant === 'secondary'
+        : variant === "secondary"
           ? theme.colors.onSurface
           : theme.colors.primary;
 
@@ -55,22 +62,29 @@ export function AppButton({
         fullWidth ? styles.fullWidth : undefined,
         style,
       ]}
-      {...props}>
-      {loading ? <ActivityIndicator color={color} /> : <AppText style={{ color }} variant="labelMd">{title}</AppText>}
+      {...props}
+    >
+      {loading ? (
+        <ActivityIndicator color={color} />
+      ) : (
+        <AppText style={{ color }} variant="labelMd">
+          {title}
+        </AppText>
+      )}
     </AppPressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: Sizes["9xl"],
+    paddingHorizontal: Sizes.xl,
+    paddingVertical: Spacing.md,
   },
   fullWidth: {
-    width: '100%',
+    width: "100%",
   },
 });
 

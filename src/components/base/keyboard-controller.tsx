@@ -1,4 +1,3 @@
-import type { PropsWithChildren } from 'react';
 import { StyleSheet } from 'react-native';
 import {
   KeyboardAwareScrollView,
@@ -6,6 +5,8 @@ import {
 } from 'react-native-keyboard-controller';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
+
+import type { PropsWithChildren } from 'react';
 
 const DEFAULT_BOTTOM_OFFSET = 60;
 

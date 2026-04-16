@@ -1,4 +1,3 @@
-import type { PropsWithChildren } from 'react';
 import { StyleSheet } from 'react-native';
 import {
   SafeAreaView as NativeSafeAreaView,
@@ -6,6 +5,8 @@ import {
 } from 'react-native-safe-area-context';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
+
+import type { PropsWithChildren } from 'react';
 
 export type AppSafeAreaProps = PropsWithChildren<
   SafeAreaViewProps & {

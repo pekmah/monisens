@@ -1,6 +1,6 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { FontFamilies } from '@/constants/fonts';
+import { font } from '@/constants/fonts';
 import { Typography } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     ...Typography.bodyLg,
   },
   defaultSemiBold: {
-    fontFamily: FontFamilies.semiBold,
+    fontFamily: font.semiBold,
     fontSize: Typography.bodyLg.fontSize,
     lineHeight: Typography.bodyLg.lineHeight,
   },
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     ...Typography.titleMd,
   },
   link: {
-    fontFamily: FontFamilies.regular,
+    fontFamily: font.regular,
     fontSize: Typography.bodyLg.fontSize,
     lineHeight: Typography.bodyLg.lineHeight,
   },

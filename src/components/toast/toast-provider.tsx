@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import {
   createContext,
   type PropsWithChildren,
@@ -7,7 +8,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Feather } from '@expo/vector-icons';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated, {
   interpolate,
@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppPressable } from '@/components/base/app-pressable';
 import { AppText } from '@/components/base/app-text';
+import { FontSizes, LineHeights, Radii, Sizes, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export type ToastVariant = 'success' | 'error' | 'info' | 'warning';
@@ -44,9 +45,9 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const DEFAULT_DURATION = 15000;
 const MAX_VISIBLE_TOASTS = 3;
 const COLLAPSED_DESCRIPTION_LENGTH = 56;
-const COLLAPSED_DESCRIPTION_HEIGHT = 17;
+const COLLAPSED_DESCRIPTION_HEIGHT = LineHeights.sm;
 const EXPAND_ANIMATION_MS = 260;
-const EXPANDED_DESCRIPTION_HEIGHT = 112;
+const EXPANDED_DESCRIPTION_HEIGHT = Sizes['15xl'];
 
 const toastMeta = {
   success: {
@@ -212,7 +213,7 @@ function ToastCard({
         },
       ]}>
       <View style={[styles.iconCircle, { backgroundColor: meta.iconBackground }]}>
-        <Feather color={meta.iconColor} name={meta.icon} size={18} />
+        <Feather color={meta.iconColor} name={meta.icon} size={Sizes.xl} />
       </View>
       <View style={styles.copy}>
         <AppText style={[styles.title, { color: meta.titleColor }]} variant="titleMd">
@@ -258,11 +259,11 @@ function ToastCard({
 const styles = StyleSheet.create({
   copy: {
     flex: 1,
-    gap: 1,
+    gap: Sizes.xxs,
   },
   description: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.sm,
   },
   descriptionClip: {
     overflow: 'hidden',
@@ -270,28 +271,28 @@ const styles = StyleSheet.create({
   dismiss: {
     alignItems: 'center',
     borderColor: '#e5e7e5',
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 36,
+    borderRadius: Radii.full,
+    borderWidth: Sizes.hairline,
+    height: Sizes['6xl'],
     justifyContent: 'center',
-    width: 36,
+    width: Sizes['6xl'],
   },
   dismissText: {
     color: '#6e736f',
-    fontSize: 24,
+    fontSize: FontSizes['2xl'],
     fontWeight: '300',
-    lineHeight: 28,
+    lineHeight: LineHeights['3xl'],
   },
   expandButton: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: Spacing.xs,
   },
   expandText: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.xs,
   },
   host: {
-    maxWidth: 390,
+    maxWidth: Sizes['20xl'] + Sizes['17xl'] + Sizes['4xl'] + Sizes.xxs,
     pointerEvents: 'box-none',
     position: 'absolute',
     zIndex: 1000,
@@ -299,26 +300,26 @@ const styles = StyleSheet.create({
   },
   iconCircle: {
     alignItems: 'center',
-    borderRadius: 18,
-    height: 36,
+    borderRadius: Radii.full,
+    height: Sizes['6xl'],
     justifyContent: 'center',
-    width: 36,
+    width: Sizes['6xl'],
   },
   stackedToast: {
-    marginTop: 10,
+    marginTop: Sizes.sm + Sizes.xxs,
   },
   title: {
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: FontSizes.lg,
+    lineHeight: LineHeights.md,
   },
   toast: {
     alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: Sizes.hairline,
     flexDirection: 'row',
-    gap: 14,
-    minHeight: 78,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 14,
+    gap: Sizes.md + Sizes.xxs,
+    minHeight: Sizes['13xl'] - Sizes.xxs,
+    paddingHorizontal: Sizes['2xl'],
+    paddingVertical: Sizes.md + Sizes.xxs,
+    borderRadius: Radii.md + Sizes.xxs,
   },
 });

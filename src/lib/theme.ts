@@ -1,23 +1,23 @@
-import type { Theme as NavigationTheme } from '@react-navigation/native';
-
-import { FontFamilies } from '@/constants/fonts';
+import { font } from '@/constants/fonts';
 import { type AppTheme, type AppThemeName, getAppTheme } from '@/constants/theme';
+
+import type { Theme as NavigationTheme } from '@react-navigation/native';
 
 const navigationFonts = {
   regular: {
-    fontFamily: FontFamilies.regular,
+    fontFamily: font.regular,
     fontWeight: '400' as const,
   },
   medium: {
-    fontFamily: FontFamilies.medium,
+    fontFamily: font.headerMedium,
     fontWeight: '500' as const,
   },
   bold: {
-    fontFamily: FontFamilies.bold,
+    fontFamily: font.headerBold,
     fontWeight: '700' as const,
   },
   heavy: {
-    fontFamily: FontFamilies.bold,
+    fontFamily: font.headerBold,
     fontWeight: '700' as const,
   },
 };

@@ -1,1 +1,1 @@
-export { default } from '@/features/tabs/home';
+export { default } from '@/features/tabs/dashboard';

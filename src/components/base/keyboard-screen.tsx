@@ -1,8 +1,9 @@
-import type { KeyboardAwareScrollViewProps } from 'react-native-keyboard-controller';
 
-import { AppSafeArea, type AppSafeAreaProps } from '@/components/base/safe-area';
 import { KeyboardController } from '@/components/base/keyboard-controller';
+import { AppSafeArea, type AppSafeAreaProps } from '@/components/base/safe-area';
 import { useAppTheme } from '@/hooks/use-app-theme';
+
+import type { KeyboardAwareScrollViewProps } from 'react-native-keyboard-controller';
 
 export type KeyboardScreenProps = AppSafeAreaProps &
   KeyboardAwareScrollViewProps & {

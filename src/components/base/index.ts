@@ -22,6 +22,9 @@ export type { KeyboardScreenProps } from './keyboard-screen';
 export { Screen } from './screen';
 export type { ScreenProps } from './screen';
 
+export { ScreenHeader } from './screen-header';
+export type { ScreenHeaderProps } from './screen-header';
+
 export { AppSafeArea, default as SafeArea } from './safe-area';
 export type { AppSafeAreaProps } from './safe-area';
 

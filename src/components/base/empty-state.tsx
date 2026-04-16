@@ -1,7 +1,8 @@
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { AppButton, type AppButtonProps } from '@/components/base/button';
 import { AppText } from '@/components/base/app-text';
+import { AppButton, type AppButtonProps } from '@/components/base/button';
+import { Sizes } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export type EmptyStateProps = ViewProps & {
@@ -39,7 +40,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   copy: {
-    gap: 6,
+    gap: Sizes.sm - Sizes.xxs,
   },
 });
 

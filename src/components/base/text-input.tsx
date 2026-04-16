@@ -1,6 +1,7 @@
 import { StyleSheet, TextInput, type TextInputProps, View } from 'react-native';
 
 import { AppText } from '@/components/base/app-text';
+import { Sizes, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export type AppTextInputProps = TextInputProps & {
@@ -58,9 +59,9 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 52,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    minHeight: Sizes['10xl'],
+    paddingHorizontal: Sizes.md + Sizes.xxs,
+    paddingVertical: Spacing.md,
   },
 });
 

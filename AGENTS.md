@@ -27,14 +27,15 @@ This Expo app uses a feature-based architecture modeled after `reemio-app`.
 ## Fonts
 
 - Inter is the default app font.
-- Use `FontFamilies` from `@/constants/fonts` instead of hardcoding Inter font names.
-- Load new Inter weights in `src/app/_layout.tsx` and add them to `src/constants/fonts` before use.
-- Keep React Navigation font configuration and React Native `Text`/`TextInput` defaults aligned with `FontFamilies`.
+- Use `font` from `@/constants/fonts` instead of hardcoding font names. Use `font.regular`, `font.medium`, `font.semiBold`, and `font.bold` for Inter body text, and `font.headerRegular`, `font.headerMedium`, `font.headerSemiBold`, and `font.headerBold` for Manrope headers/titles.
+- Load new Inter or Manrope weights in `src/app/_layout.tsx` and add them to `src/constants/fonts` before use.
+- Keep React Navigation font configuration and React Native `Text`/`TextInput` defaults aligned with `font`.
 
 ## Theming
 
 - Use the native React Native styling APIs (`StyleSheet`, inline style arrays, and typed style props). Do not add a UI framework such as NativeWind, Tamagui, Gluestack, or React Native Paper for this project.
-- Keep theme tokens in `src/constants/theme.ts`. Add colors, spacing, radii, typography, and elevation there before using new visual values in components.
+- Keep theme tokens in `src/constants/theme.ts`. Add colors, spacing, sizes, font sizes, line heights, radii, typography, and elevation there before using new visual values in components.
+- Do not hardcode reusable dimensions such as icon sizes, widths, heights, min heights, font sizes, line heights, or common gaps. Prefer `Sizes`, `FontSizes`, `LineHeights`, `Spacing`, and `Radii` from `@/constants/theme`, or their `theme.*` equivalents from `useAppTheme()`.
 - Source product color tokens from the Stitch `Smart Spend Intelligence` design system unless the user explicitly changes the design direction.
 - Support both light and dark mode for every reusable component. Prefer `useAppTheme()` for full theme access and `useThemeColor()` for one-off color lookups.
 - Avoid 1px divider-first layouts. Follow the Stitch design direction by separating surfaces through tonal background changes, spacing, and subtle outline variants only when accessibility requires it.

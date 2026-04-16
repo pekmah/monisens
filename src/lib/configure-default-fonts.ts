@@ -1,6 +1,6 @@
 import { Text, TextInput } from 'react-native';
 
-import { FontFamilies } from '@/constants/fonts';
+import { font } from '@/constants/fonts';
 
 type DefaultableComponent = {
   defaultProps?: {
@@ -9,7 +9,7 @@ type DefaultableComponent = {
   };
 };
 
-const defaultFontStyle = { fontFamily: FontFamilies.regular };
+const defaultFontStyle = { fontFamily: font.regular };
 
 function applyDefaultFont(Component: DefaultableComponent) {
   Component.defaultProps = {
@@ -20,4 +20,3 @@ function applyDefaultFont(Component: DefaultableComponent) {
 
 applyDefaultFont(Text as DefaultableComponent);
 applyDefaultFont(TextInput as DefaultableComponent);
-
