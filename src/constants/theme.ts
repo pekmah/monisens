@@ -62,6 +62,7 @@ export type AppThemeColors = {
   tertiaryFixedDim: string;
   text: string;
   tint: string;
+  placeholderText: string;
 };
 
 export type AppTheme = {
@@ -136,6 +137,7 @@ const lightColors = {
   tertiaryFixedDim: "#e4b5ff",
   text: "#1c1b1b",
   tint: "#0d631b",
+  placeholderText: "#727272",
 } satisfies AppThemeColors;
 
 const darkColors = {
@@ -196,6 +198,7 @@ const darkColors = {
   tertiaryFixedDim: "#00cded",
   text: "#ffffff",
   tint: "#6dfe9c",
+  placeholderText: "#afaaa8",
 } satisfies AppThemeColors;
 
 export const Colors = {

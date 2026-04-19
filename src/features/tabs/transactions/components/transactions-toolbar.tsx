@@ -1,6 +1,8 @@
+import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 
+import { AppButton } from "@/components/base/button";
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
@@ -78,6 +80,12 @@ export function TransactionsToolbar() {
           </AppPressable>
         ))}
       </ScrollView>
+
+      <AppButton
+        fullWidth
+        onPress={() => router.push("/transactions/new")}
+        title="Add transaction"
+      />
     </View>
   );
 }

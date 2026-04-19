@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
@@ -235,6 +235,7 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
       <AppPressable
+        onPress={() => router.push("/transactions/new")}
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
       >
         <Feather color={theme.colors.onPrimary} name="plus" size={28} />
