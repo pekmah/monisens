@@ -1,6 +1,6 @@
-import type { TextStyle } from "react-native";
-
 import { Typography } from "@/constants/theme";
+
+import type { TextStyle } from "react-native";
 
 export type AppTextVariant = keyof typeof Typography;
 

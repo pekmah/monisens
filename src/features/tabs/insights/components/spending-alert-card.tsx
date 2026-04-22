@@ -6,6 +6,7 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { formatMoney } from "@/lib/finance";
 
 export function SpendingAlertCard() {
   const theme = useAppTheme();
@@ -33,7 +34,7 @@ export function SpendingAlertCard() {
         <AppText style={styles.alertTitle} variant="titleMd">
           You overspent on transport by{" "}
           <AppText color="tertiary" style={styles.alertTitle} variant="titleMd">
-            KES 2,000
+            {formatMoney(200000, "KES")}
           </AppText>
         </AppText>
         <AppText color="mutedText" style={styles.description} variant="bodyMd">
@@ -49,7 +50,7 @@ export function SpendingAlertCard() {
           DAILY BURN RATE
         </AppText>
         <AppText style={styles.burnAmount} variant="headlineSm">
-          KES 1,500
+          {formatMoney(150000, "KES")}
         </AppText>
         <AppText color="mutedText" style={styles.description} variant="bodyMd">
           Average daily expenditure

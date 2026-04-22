@@ -10,6 +10,7 @@ import {
   SubscriptionsCard,
   TrajectoryCard,
 } from "@/features/tabs/insights/components";
+import { formatMoney } from "@/lib/finance";
 
 const allocations = [
   { color: "#fb923c", label: "Food & Drink", value: 42 },
@@ -21,19 +22,19 @@ const allocations = [
 const subscriptions = [
   {
     accent: "#e11d48",
-    amount: "KES 1,200",
+    amount: formatMoney(120000, "KES"),
     meta: "Due in 3 days",
     title: "Netflix Premium",
   },
   {
     accent: "#16a34a",
-    amount: "KES 950",
+    amount: formatMoney(95000, "KES"),
     meta: "Due in 12 days",
     title: "Spotify Family",
   },
   {
     accent: "#2563eb",
-    amount: "KES 400",
+    amount: formatMoney(40000, "KES"),
     meta: "Due in 15 days",
     title: "Google One 2TB",
   },

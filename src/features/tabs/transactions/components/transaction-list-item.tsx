@@ -9,9 +9,10 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type TransactionListItemData = {
   accent: string;
-  amount: string;
+  amountLabel: string;
   category: string;
   hint?: string;
+  id: string;
   time: string;
   title: string;
 };
@@ -26,7 +27,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
 
   return (
     <AppPressable
-      onPress={() => router.push("/transactions/java-house")}
+      onPress={() => router.push(`/transactions/${transaction.id}`)}
       style={[
         styles.item,
         theme.elevation.ambient,
@@ -76,7 +77,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
       </View>
       <View style={styles.amountBlock}>
         <AppText numberOfLines={1} style={styles.amount} variant="titleMd">
-          {transaction.amount}
+          {transaction.amountLabel}
         </AppText>
         {transaction.hint ? (
           <AppText
@@ -137,10 +138,10 @@ const styles = StyleSheet.create({
     minWidth: Sizes.none,
   },
   hint: {
+    fontFamily: font.medium,
     fontSize: FontSizes.xs,
     lineHeight: Sizes.lg,
     textAlign: "right",
-    fontFamily: font.medium,
   },
   icon: {
     alignItems: "center",
@@ -177,9 +178,9 @@ const styles = StyleSheet.create({
     gap: Sizes.xs,
   },
   time: {
+    fontFamily: font.regular,
     fontSize: FontSizes.sm,
     lineHeight: Sizes.lg,
-    fontFamily: font.regular,
   },
   title: {
     fontFamily: font.medium,

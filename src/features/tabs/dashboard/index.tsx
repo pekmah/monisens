@@ -22,64 +22,20 @@ import {
   TransactionRow,
 } from "@/features/tabs/dashboard/components";
 import { useAppTheme } from "@/hooks/use-app-theme";
-
-const breakdown = [
-  {
-    amount: 8400,
-    color: "#ff9800",
-    label: "Food & Dining",
-    value: "KES 8,400",
-  },
-  { amount: 3600, color: "#005db7", label: "Transport", value: "KES 3,600" },
-  { amount: 12000, color: "#7a2faa", label: "Utilities", value: "KES 12,000" },
-  { amount: 21000, color: "#0d631b", label: "Savings", value: "KES 21,000" },
-];
-
-const recentTransactions = [
-  {
-    accent: "#fb923c",
-    amount: "- KES 4,200",
-    bg: "#ffedd5",
-    icon: "shopping-cart" as const,
-    meta: "Today, 2:45 PM",
-    title: "Naivas Supermarket",
-  },
-  {
-    accent: "#60a5fa",
-    amount: "- KES 1,500",
-    bg: "#dbeafe",
-    icon: "credit-card" as const,
-    meta: "Yesterday, 6:12 PM",
-    title: "M-Pesa Transfer",
-  },
-  {
-    accent: "#4ade80",
-    amount: "+ KES 145,000",
-    bg: "#dcfce7",
-    icon: "briefcase" as const,
-    meta: "Oct 28, 9:00 AM",
-    title: "Salary Deposit",
-  },
-  {
-    accent: "#c084fc",
-    amount: "- KES 2,000",
-    bg: "#f3e8ff",
-    icon: "zap" as const,
-    meta: "Oct 27, 4:20 PM",
-    title: "KPLC Tokens",
-  },
-  {
-    accent: "#fb923c",
-    amount: "- KES 1,150",
-    bg: "#f5f5f4",
-    icon: "coffee" as const,
-    meta: "Oct 26, 1:15 PM",
-    title: "Java House CBD",
-  },
-];
+import { useFinance } from "@/lib/finance";
+import { formatMoney } from "@/lib/finance";
 
 export default function DashboardScreen() {
   const theme = useAppTheme();
+  const { snapshot } = useFinance();
+
+  const monthTotals = snapshot?.currentMonthTotals;
+  const spendable = Math.max(monthTotals?.netMinor ?? 0, 0);
+  const spent = monthTotals?.expenseMinor ?? 0;
+  const budgetProgress =
+    monthTotals && monthTotals.incomeMinor > 0
+      ? Math.min((spent / monthTotals.incomeMinor) * 100, 100)
+      : 0;
 
   return (
     <TabScreen>
@@ -102,7 +58,7 @@ export default function DashboardScreen() {
                 style={styles.heroAmount}
                 variant="displayLg"
               >
-                KES 2,500
+                {formatMoney(spendable, "KES")}
               </AppText>
             </View>
             <View style={styles.heroDivider} />
@@ -115,48 +71,25 @@ export default function DashboardScreen() {
                 >
                   REMAINING THIS MONTH
                 </AppText>
-                <AppText color="onPrimary" variant="titleMd">
-                  KES 45,000
+                <AppText color="onPrimary" style={styles.heroSecondaryAmount} variant="titleMd">
+                  {formatMoney(spendable, "KES")}
                 </AppText>
               </View>
               <View style={styles.availablePill}>
-                <AppText color="onPrimary" variant="labelMd">
-                  82% Available
+                <AppText color="onPrimary" style={styles.availablePillText} variant="labelMd">
+                  {snapshot?.sync.pendingOutboxCount ?? 0} queued for sync
                 </AppText>
               </View>
             </View>
             <ProgressBar
               color={theme.colors.onPrimaryContainer}
-              progress={82}
+              progress={budgetProgress}
             />
           </View>
           <View style={styles.heroOrb} />
         </SurfaceCard>
 
         <View style={styles.bentoGrid}>
-          {/* <SurfaceCard style={styles.quickInsights} tone="low">
-            <View style={styles.sectionHeader}>
-              <Feather
-                color={theme.colors.tertiary}
-                name="bar-chart-2"
-                size={20}
-              />
-              <AppText
-                style={{ fontFamily: font.headerBold }}
-                variant="titleMd"
-              >
-                Quick Insights
-              </AppText>
-            </View>
-            <InsightCard accent={theme.colors.error}>
-              You spent <AppText variant="labelMd">25% more</AppText> this week
-              compared to your average.
-            </InsightCard>
-            <InsightCard accent={theme.colors.tertiary}>
-              <AppText variant="labelMd">Food</AppText> is your highest expense
-              category today.
-            </InsightCard>
-          </SurfaceCard> */}
           <SurfaceCard elevated style={styles.transactionsCard}>
             <View style={styles.transactionsHeader}>
               <AppText
@@ -174,9 +107,15 @@ export default function DashboardScreen() {
               </Link>
             </View>
             <View style={styles.transactionList}>
-              {recentTransactions.map((transaction) => (
-                <TransactionRow key={transaction.title} {...transaction} />
-              ))}
+              {snapshot?.dashboardTransactions.length ? (
+                snapshot.dashboardTransactions.map((transaction) => (
+                  <TransactionRow key={transaction.id} {...transaction} />
+                ))
+              ) : (
+                <AppText color="mutedText" variant="bodyMd">
+                  No transactions stored locally yet.
+                </AppText>
+              )}
             </View>
           </SurfaceCard>
 
@@ -200,35 +139,44 @@ export default function DashboardScreen() {
               </View>
             </View>
             <View style={styles.breakdownContent}>
-              <SpendingDonutChart data={breakdown} totalLabel="KES 45k" />
+              <SpendingDonutChart
+                data={snapshot?.breakdown ?? []}
+                totalLabel={formatMoney(monthTotals?.expenseMinor ?? 0, "KES")}
+              />
               <View style={styles.legendGrid}>
-                {breakdown.map((item) => (
-                  <View key={item.label} style={styles.legendItem}>
-                    <View
-                      style={[
-                        styles.legendDot,
-                        { backgroundColor: item.color },
-                      ]}
-                    />
-                    <View style={styles.legendCopy}>
-                      <AppText
-                        color="mutedText"
-                        numberOfLines={1}
-                        style={styles.legendLabel}
-                        variant="labelMd"
-                      >
-                        {item.label}
-                      </AppText>
-                      <AppText
-                        numberOfLines={1}
-                        style={styles.legendValue}
-                        variant="labelMd"
-                      >
-                        {item.value}
-                      </AppText>
+                {snapshot?.breakdown.length ? (
+                  snapshot.breakdown.map((item) => (
+                    <View key={item.label} style={styles.legendItem}>
+                      <View
+                        style={[
+                          styles.legendDot,
+                          { backgroundColor: item.color },
+                        ]}
+                      />
+                      <View style={styles.legendCopy}>
+                        <AppText
+                          color="mutedText"
+                          numberOfLines={1}
+                          style={styles.legendLabel}
+                          variant="labelMd"
+                        >
+                          {item.label}
+                        </AppText>
+                        <AppText
+                          numberOfLines={1}
+                          style={styles.legendValue}
+                          variant="labelMd"
+                        >
+                          {item.value}
+                        </AppText>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  ))
+                ) : (
+                  <AppText color="mutedText" variant="bodyMd">
+                    Expense categories will appear after local transactions are stored.
+                  </AppText>
+                )}
               </View>
             </View>
           </SurfaceCard>
@@ -249,7 +197,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: Radii.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Sizes.xs + Sizes.xxs,
+    paddingVertical: Sizes.xs,
+  },
+  availablePillText: {
+    fontFamily: font.medium,
+    fontSize: FontSizes.xs,
+    lineHeight: LineHeights.xs,
   },
   bentoGrid: {
     gap: Spacing.lg,
@@ -259,7 +212,6 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   breakdownContent: {
-    alignItems: "center",
     gap: Spacing.xl,
   },
   breakdownHeader: {
@@ -269,123 +221,105 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: Spacing.xl,
-    paddingBottom: Spacing.xl,
+    paddingBottom: Sizes["15xl"] + Spacing.sm,
   },
   fab: {
     alignItems: "center",
     borderRadius: Radii.full,
-    bottom: Spacing.sm,
-    elevation: 12,
-    height: Sizes["11xl"],
+    bottom: Sizes["3xl"],
+    height: Sizes["12xl"],
     justifyContent: "center",
     position: "absolute",
-    right: Spacing.lg,
-    shadowColor: "#0d631b",
-    shadowOffset: { width: Sizes.none, height: Sizes.sm + Sizes.xxs },
-    shadowOpacity: 0.28,
-    shadowRadius: Sizes["2xl"] + Sizes.xxs,
-    width: Sizes["11xl"],
+    right: Sizes.xl,
+    width: Sizes["12xl"],
   },
   hero: {
-    borderRadius: Radii["2xl"],
-    overflow: "hidden",
-    padding: Spacing["2xl"],
+    minHeight: Sizes["20xl"],
   },
   heroAmount: {
-    fontSize: FontSizes["4xl"] - 2,
-    lineHeight: LineHeights["5xl"],
-    // letter spacing:+2
-    letterSpacing: 1,
+    fontFamily: font.headerBold,
+    fontSize: FontSizes["3xl"],
+    lineHeight: LineHeights["4xl"],
   },
   heroContent: {
-    gap: Sizes["2xl"] + Sizes.xxs,
+    gap: Spacing.lg,
     zIndex: 1,
   },
   heroDivider: {
-    backgroundColor: "rgba(255,255,255,0.14)",
-    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.24)",
+    height: Sizes.hairline,
   },
   heroFooter: {
-    alignItems: "flex-end",
+    alignItems: "center",
     flexDirection: "row",
+    gap: Spacing.md,
     justifyContent: "space-between",
   },
+  heroSecondaryAmount: {
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.lg,
+    lineHeight: LineHeights.xl,
+  },
   heroOrb: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: Sizes["14xl"],
-    height: Sizes["19xl"],
+    backgroundColor: "rgba(255,255,255,0.09)",
+    borderRadius: Radii.full,
+    height: Sizes["18xl"],
     position: "absolute",
-    right: -(Sizes["13xl"] - Sizes.xs),
-    top: -(Sizes["13xl"] - Sizes.sm),
-    width: Sizes["19xl"],
+    right: -Sizes["5xl"],
+    top: -Sizes["4xl"],
+    width: Sizes["18xl"],
   },
   legendCopy: {
     flex: 1,
     gap: Sizes.xxs,
     minWidth: Sizes.none,
   },
-  legendGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.lg,
-  },
   legendDot: {
     borderRadius: Radii.full,
     height: Sizes.md,
+    marginTop: Sizes.xs,
     width: Sizes.md,
   },
+  legendGrid: {
+    gap: Spacing.md,
+  },
   legendItem: {
-    alignItems: "center",
-    flexBasis: "45%",
     flexDirection: "row",
-    gap: Spacing.sm,
-    minWidth: Sizes.none,
+    gap: Spacing.md,
   },
   legendLabel: {
     fontSize: FontSizes.sm,
-    lineHeight: Sizes.lg,
+    lineHeight: LineHeights.sm,
   },
   legendValue: {
     fontFamily: font.headerSemiBold,
-    fontSize: FontSizes.md,
-    lineHeight: Sizes["2xl"],
   },
   monthPill: {
     borderRadius: Radii.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Sizes.xs + Sizes.xxs,
+    paddingVertical: Spacing.sm,
   },
   overline: {
-    letterSpacing: 2,
-    marginBottom: Spacing.sm,
-    opacity: 0.82,
+    fontFamily: font.bold,
+    fontSize: FontSizes.xs,
+    letterSpacing: 1.1,
+    lineHeight: LineHeights.xs,
   },
   overlineSmall: {
+    fontFamily: font.bold,
     fontSize: FontSizes.xs,
-    letterSpacing: 1.2,
-    opacity: 0.72,
-  },
-  quickInsights: {
-    gap: Spacing.lg,
-    padding: Spacing.xl,
-  },
-  sectionHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: Spacing.sm,
+    letterSpacing: 1.1,
+    lineHeight: LineHeights.xs,
   },
   transactionList: {
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   transactionsCard: {
-    borderRadius: Radii["2xl"],
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xl,
+    gap: Spacing.lg,
   },
   transactionsHeader: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: Spacing.lg,
   },
 });

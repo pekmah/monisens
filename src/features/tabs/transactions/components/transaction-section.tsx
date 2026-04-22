@@ -25,10 +25,7 @@ export function TransactionSection({ section }: TransactionSectionProps) {
       </AppText>
       <View style={styles.list}>
         {section.data.map((transaction) => (
-          <TransactionListItem
-            key={transaction.title}
-            transaction={transaction}
-          />
+          <TransactionListItem key={transaction.id} transaction={transaction} />
         ))}
       </View>
     </View>

@@ -5,9 +5,18 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { ProgressBar } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { formatMoney, type BudgetOverviewRecord } from "@/lib/finance";
 
-export function BudgetOverviewCard() {
+export function BudgetOverviewCard({
+  overview,
+}: {
+  overview: BudgetOverviewRecord | null;
+}) {
   const theme = useAppTheme();
+  const progress =
+    overview && overview.limitMinor > 0
+      ? Math.min((overview.spentMinor / overview.limitMinor) * 100, 100)
+      : 0;
 
   return (
     <View style={styles.section}>
@@ -24,14 +33,14 @@ export function BudgetOverviewCard() {
               style={styles.planPillText}
               variant="labelMd"
             >
-              APRIL PLAN
+              CURRENT PLAN
             </AppText>
           </View>
           <AppText style={styles.amount} variant="displayLg">
-            KES 18,000
+            {formatMoney(overview?.remainingMinor ?? 0, "KES")}
           </AppText>
           <AppText color="mutedText" style={styles.subtitle} variant="bodyMd">
-            left to allocate before the month closes
+            left to allocate or spend safely this month
           </AppText>
         </View>
         <View
@@ -44,7 +53,7 @@ export function BudgetOverviewCard() {
           ]}
         >
           <AppText style={styles.daysNumber} variant="titleMd">
-            18
+            {overview?.daysLeft ?? 0}
           </AppText>
           <AppText color="mutedText" style={styles.daysLabel} variant="bodyMd">
             days left
@@ -66,17 +75,17 @@ export function BudgetOverviewCard() {
             Spending runway
           </AppText>
           <AppText color="primary" style={styles.runwayStatus} variant="labelMd">
-            On pace
+            {overview?.runwayStatus ?? "On pace"}
           </AppText>
         </View>
         <View style={styles.progressBlock}>
-          <ProgressBar color={theme.colors.primary} progress={64} />
+          <ProgressBar color={theme.colors.primary} progress={progress} />
           <View style={styles.progressLabels}>
             <AppText color="mutedText" style={styles.progressLabel} variant="bodyMd">
-              KES 32,000 spent
+              {formatMoney(overview?.spentMinor ?? 0, "KES")} spent
             </AppText>
             <AppText color="mutedText" style={styles.progressLabel} variant="bodyMd">
-              KES 50,000 limit
+              {formatMoney(overview?.limitMinor ?? 0, "KES")} limit
             </AppText>
           </View>
         </View>
@@ -93,7 +102,7 @@ export function BudgetOverviewCard() {
             Safe per day
           </AppText>
           <AppText style={styles.metricValue} variant="titleMd">
-            KES 2,500
+            {formatMoney(overview?.safePerDayMinor ?? 0, "KES")}
           </AppText>
         </View>
         <View
@@ -106,7 +115,7 @@ export function BudgetOverviewCard() {
             Expected buffer
           </AppText>
           <AppText color="primary" style={styles.metricValue} variant="titleMd">
-            KES 9,200
+            {formatMoney(overview?.bufferMinor ?? 0, "KES")}
           </AppText>
         </View>
       </View>

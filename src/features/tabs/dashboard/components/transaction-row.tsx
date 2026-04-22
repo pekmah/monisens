@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
@@ -15,7 +16,8 @@ export type TransactionRowProps = {
   accent: string;
   amount: string;
   bg: string;
-  icon: FeatherName;
+  icon?: FeatherName;
+  id: string;
   meta: string;
   title: string;
 };
@@ -24,7 +26,8 @@ export function TransactionRow({
   accent,
   amount,
   bg,
-  icon,
+  icon = "credit-card",
+  id,
   meta,
   title,
 }: TransactionRowProps) {
@@ -34,6 +37,7 @@ export function TransactionRow({
 
   return (
     <AppPressable
+      onPress={() => router.push(`/transactions/${id}`)}
       style={[
         styles.row,
         {
@@ -42,7 +46,7 @@ export function TransactionRow({
         },
       ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: bg }]}>
+      <View style={[styles.iconWrap, { backgroundColor: bg }]}> 
         <Feather color={accent} name={icon} size={Sizes["2xl"]} />
       </View>
       <View style={[styles.accentBar, { backgroundColor: accent }]} />
@@ -63,9 +67,9 @@ export function TransactionRow({
           <View
             style={{
               flex: 1,
-              minWidth: Sizes.none,
               flexDirection: "row",
               justifyContent: "flex-end",
+              minWidth: Sizes.none,
             }}
           >
             <AppText
@@ -86,9 +90,9 @@ const styles = StyleSheet.create({
   accentBar: {
     alignSelf: "stretch",
     borderRadius: Radii.full,
+    height: Sizes["6xl"],
     marginVertical: "auto",
     width: Sizes.xs,
-    height: Sizes["6xl"],
   },
   amount: {
     fontFamily: font.headerSemiBold,
@@ -120,9 +124,9 @@ const styles = StyleSheet.create({
     width: Sizes["10xl"],
   },
   meta: {
+    fontFamily: font.regular,
     fontSize: FontSizes.sm,
     lineHeight: Sizes.lg,
-    fontFamily: font.regular,
   },
   row: {
     alignItems: "center",

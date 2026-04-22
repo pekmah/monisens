@@ -6,6 +6,7 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { formatMoney } from "@/lib/finance";
 
 export function BudgetTipCard() {
   const theme = useAppTheme();
@@ -31,7 +32,7 @@ export function BudgetTipCard() {
           ]}
         >
           <AppText color="primary" style={styles.savings} variant="labelMd">
-            KES 1,200
+            {formatMoney(120000, "KES")}
           </AppText>
         </View>
       </View>

@@ -6,40 +6,62 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { formatSignedMoney, type TransactionRecord } from "@/lib/finance";
 
-export function TransactionHeroCard() {
+export function TransactionHeroCard({
+  transaction,
+}: {
+  transaction: TransactionRecord;
+}) {
   const theme = useAppTheme();
 
   return (
     <SurfaceCard elevated style={styles.hero}>
       <View style={styles.topRow}>
-        <View style={[styles.icon, { backgroundColor: theme.colors.primaryFixed }]}>
+        <View style={[styles.icon, { backgroundColor: theme.colors.primaryFixed }]}> 
           <AppText color="onPrimaryFixed" style={styles.initials} variant="labelMd">
-            JH
+            {getInitials(transaction.merchant)}
           </AppText>
         </View>
         <View
           style={[
             styles.statusPill,
-            { backgroundColor: theme.colors.primaryFixed },
+            {
+              backgroundColor:
+                transaction.syncStatus === "synced"
+                  ? theme.colors.primaryFixed
+                  : theme.colors.secondaryFixed,
+            },
           ]}
         >
-          <Feather color={theme.colors.primary} name="check-circle" size={14} />
+          <Feather
+            color={
+              transaction.syncStatus === "synced"
+                ? theme.colors.primary
+                : theme.colors.secondary
+            }
+            name={transaction.syncStatus === "synced" ? "check-circle" : "refresh-cw"}
+            size={14}
+          />
           <AppText color="onPrimaryFixed" style={styles.statusText} variant="labelMd">
-            Completed
+            {transaction.syncStatus === "synced" ? "Synced" : "Pending sync"}
           </AppText>
         </View>
       </View>
 
       <View style={styles.mainCopy}>
         <AppText color="mutedText" style={styles.overline} variant="labelMd">
-          JAVA HOUSE
+          {transaction.merchant.toUpperCase()}
         </AppText>
         <AppText style={styles.amount} variant="displayLg">
-          - KES 1,200.00
+          {formatSignedMoney(
+            transaction.amountMinor,
+            transaction.currency,
+            transaction.direction,
+          )}
         </AppText>
         <AppText color="mutedText" style={styles.subtitle} variant="bodyMd">
-          Dining purchase from M-PESA
+          {transaction.notes || `${transaction.source.toUpperCase()} transaction stored locally first.`}
         </AppText>
       </View>
 
@@ -51,7 +73,7 @@ export function TransactionHeroCard() {
             Category
           </AppText>
           <AppText style={styles.summaryValue} variant="labelMd">
-            Food & Drinks
+            {transaction.categoryLabel}
           </AppText>
         </View>
         <View style={styles.summaryItem}>
@@ -59,12 +81,22 @@ export function TransactionHeroCard() {
             Account
           </AppText>
           <AppText style={styles.summaryValue} variant="labelMd">
-            M-PESA
+            {transaction.accountLabel}
           </AppText>
         </View>
       </View>
     </SurfaceCard>
   );
+}
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 const styles = StyleSheet.create({

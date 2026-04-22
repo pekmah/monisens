@@ -1,32 +1,20 @@
 import { Feather } from "@expo/vector-icons";
 import { StyleSheet, View } from "react-native";
 
-import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
+import { AppButton } from "@/components/base/button";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFinance } from "@/lib/finance";
 
-const controls = [
-  {
-    action: "Delete old transactions",
-    color: "primary" as const,
-    icon: "trash-2" as const,
-    meta: "Remove historical data to save space or protect privacy.",
-    title: "Storage Cleanup",
-  },
-  {
-    action: "Report incorrect parsing",
-    color: "tertiary" as const,
-    icon: "alert-circle" as const,
-    meta: "Help us improve by flagging errors in AI categorization.",
-    title: "Quality Control",
-  },
-];
+const CLOUD_URL = "https://formal-meerkat-474.convex.cloud";
+const HTTP_ACTIONS_URL = "https://formal-meerkat-474.convex.site";
 
 export function DataControlsCard() {
   const theme = useAppTheme();
+  const { snapshot, syncNow } = useFinance();
 
   return (
     <SurfaceCard style={styles.card}>
@@ -45,35 +33,54 @@ export function DataControlsCard() {
       </View>
 
       <View style={styles.controls}>
-        {controls.map((control) => {
-          const color = theme.colors[control.color];
+        <View
+          style={[
+            styles.control,
+            {
+              backgroundColor: theme.colors.surfaceContainerLow,
+              borderColor: theme.colors.outlineVariant,
+            },
+          ]}
+        >
+          <AppText style={[styles.controlTitle, { color: theme.colors.primary }]} variant="labelMd">
+            Local source of truth
+          </AppText>
+          <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
+            {snapshot?.transactions.length ?? 0} transactions, {snapshot?.budgets.length ?? 0} budgets, {snapshot?.imports.length ?? 0} imports, and {snapshot?.attachments.length ?? 0} attachments are stored locally.
+          </AppText>
+          <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
+            {snapshot?.sync.pendingOutboxCount ?? 0} record(s) are queued in the outbox.
+          </AppText>
+          <AppButton onPress={() => void syncNow()} title="Run sync now" variant="secondary" />
+        </View>
 
-          return (
-            <View
-              key={control.title}
-              style={[
-                styles.control,
-                {
-                  backgroundColor: theme.colors.surfaceContainerLow,
-                  borderColor: theme.colors.outlineVariant,
-                },
-              ]}
-            >
-              <AppText style={[styles.controlTitle, { color }]} variant="labelMd">
-                {control.title}
-              </AppText>
-              <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
-                {control.meta}
-              </AppText>
-              <AppPressable style={styles.controlAction}>
-                <Feather color={color} name={control.icon} size={16} />
-                <AppText style={[styles.controlActionText, { color }]} variant="labelMd">
-                  {control.action}
-                </AppText>
-              </AppPressable>
-            </View>
-          );
-        })}
+        <View
+          style={[
+            styles.control,
+            {
+              backgroundColor: theme.colors.surfaceContainerLow,
+              borderColor: theme.colors.outlineVariant,
+            },
+          ]}
+        >
+          <AppText style={[styles.controlTitle, { color: theme.colors.tertiary }]} variant="labelMd">
+            Remote transport
+          </AppText>
+          <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
+            Cloud URL: {CLOUD_URL}
+          </AppText>
+          <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
+            HTTP Actions URL: {HTTP_ACTIONS_URL}
+          </AppText>
+          <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
+            Current status: {snapshot?.sync.status ?? "idle"}
+          </AppText>
+          {snapshot?.sync.errorMessage ? (
+            <AppText color="error" style={styles.controlMeta} variant="bodyMd">
+              {snapshot.sync.errorMessage}
+            </AppText>
+          ) : null}
+        </View>
       </View>
     </SurfaceCard>
   );
@@ -88,17 +95,6 @@ const styles = StyleSheet.create({
     borderWidth: Sizes.hairline,
     gap: Spacing.sm,
     padding: Spacing.lg,
-  },
-  controlAction: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: Spacing.sm,
-    paddingTop: Spacing.xs,
-  },
-  controlActionText: {
-    fontFamily: font.bold,
-    fontSize: FontSizes.sm,
-    lineHeight: LineHeights.sm,
   },
   controlMeta: {
     fontSize: FontSizes.sm,

@@ -14,6 +14,7 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { formatMoney } from "@/lib/finance";
 
 const weekLabels = ["W1", "W2", "W3", "W4"];
 
@@ -33,7 +34,7 @@ export function TrajectoryCard() {
         </View>
         <View style={styles.amountBlock}>
           <AppText color="primary" style={styles.amount} variant="headlineSm">
-            KES 142,500
+            {formatMoney(14250000, "KES")}
           </AppText>
           <View style={styles.deltaRow}>
             <Feather color={theme.colors.error} name="trending-up" size={12} />

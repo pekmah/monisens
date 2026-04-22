@@ -25,6 +25,7 @@ import "react-native-reanimated";
 import { ToastProvider } from "@/components/toast";
 import { font } from "@/constants/fonts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { FinanceProvider } from "@/lib/finance";
 import { getThemes } from "@/lib/theme";
 import { ThemeControllerProvider } from "@/lib/theme-controller";
 
@@ -59,7 +60,9 @@ export default function RootLayout() {
 
   return (
     <ThemeControllerProvider>
-      <RootNavigator />
+      <FinanceProvider>
+        <RootNavigator />
+      </FinanceProvider>
     </ThemeControllerProvider>
   );
 }

@@ -27,7 +27,7 @@ export function DetailHeader() {
           TRANSACTION
         </AppText>
         <AppText style={styles.title} variant="titleMd">
-          Receipt details
+          Local receipt details
         </AppText>
       </View>
     </View>

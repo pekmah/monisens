@@ -6,24 +6,16 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { ProgressBar } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
-
-export type BudgetCategory = {
-  accent: string;
-  budget: string;
-  label: string;
-  meta: string;
-  remaining: string;
-  spent: string;
-  status: string;
-  value: number;
-};
+import type { BudgetAllocationRecord } from "@/lib/finance";
 
 export type CategoryAllocationsCardProps = {
-  categories: BudgetCategory[];
+  categories: BudgetAllocationRecord[];
+  onAddBudget: () => void;
 };
 
 export function CategoryAllocationsCard({
   categories,
+  onAddBudget,
 }: CategoryAllocationsCardProps) {
   const theme = useAppTheme();
 
@@ -33,7 +25,7 @@ export function CategoryAllocationsCard({
         <View style={styles.titleCopy}>
           <AppText variant="headlineSm">Budget envelopes</AppText>
           <AppText color="mutedText" variant="bodyMd">
-            Each category keeps its own limit, remaining balance, and risk.
+            Each category keeps its own local limit, remaining balance, and risk.
           </AppText>
         </View>
         <View
@@ -43,12 +35,13 @@ export function CategoryAllocationsCard({
           ]}
         >
           <AppText color="onPrimaryFixed" style={styles.monthText} variant="labelMd">
-            Apr
+            Live
           </AppText>
         </View>
       </View>
 
       <AppPressable
+        onPress={onAddBudget}
         style={[
           styles.addCategoryButton,
           {
@@ -73,10 +66,10 @@ export function CategoryAllocationsCard({
         </View>
         <View style={styles.addCategoryCopy}>
           <AppText style={styles.addCategoryTitle} variant="labelMd">
-            Add new category
+            Add local budget
           </AppText>
           <AppText color="mutedText" style={styles.addCategoryMeta} variant="bodyMd">
-            Create another envelope for planned spending.
+            This writes to SQLite first and queues a budget sync record.
           </AppText>
         </View>
         <AppText color="primary" style={styles.addCategoryAction} variant="labelMd">
@@ -87,7 +80,7 @@ export function CategoryAllocationsCard({
       <View style={styles.categories}>
         {categories.map((category) => (
           <View
-            key={category.label}
+            key={category.id}
             style={[
               styles.category,
               { backgroundColor: theme.colors.surfaceContainerLow },
@@ -264,15 +257,15 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingLeft: Spacing.xl,
   },
-  categoryFooter: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    justifyContent: "space-between",
-  },
   categoryCopy: {
     flex: 1,
     gap: Sizes.xxs,
     minWidth: 0,
+  },
+  categoryFooter: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    justifyContent: "space-between",
   },
   categoryTitle: {
     fontFamily: font.headerSemiBold,
@@ -328,14 +321,13 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.sm,
   },
-  titleRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: Spacing.md,
-    justifyContent: "space-between",
-  },
   titleCopy: {
     flex: 1,
-    gap: Sizes.xs,
+    gap: Sizes.xxs,
+  },
+  titleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.md,
   },
 });
