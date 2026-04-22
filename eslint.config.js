@@ -7,4 +7,35 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    settings: {
+      'import/resolver': {
+        node: true,
+        typescript: {
+          alwaysTryTypes: true,
+          project: './tsconfig.json',
+        },
+      },
+    },
+    rules: {
+      'import/order': [
+        'error',
+        {
+          alphabetize: {
+            caseInsensitive: true,
+            order: 'asc',
+          },
+          groups: ['builtin', 'external', 'internal', ['parent', 'sibling', 'index'], 'type'],
+          'newlines-between': 'always',
+          pathGroups: [
+            {
+              group: 'internal',
+              pattern: '@/**',
+            },
+          ],
+          pathGroupsExcludedImportTypes: ['builtin'],
+        },
+      ],
+    },
+  },
 ]);
