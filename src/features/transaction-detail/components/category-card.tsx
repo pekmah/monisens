@@ -1,7 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { AppPressable } from "@/components/base/app-pressable";
-import { AppText } from "@/components/base/app-text";
+import { AppFlashList, AppPressable, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
@@ -32,8 +31,8 @@ export function CategoryCard({
           </AppText>
           <AppText color="mutedText" style={styles.subtitle} variant="bodyMd">
             {editing
-              ? "Tap a category to update the local row and queue an outbox update."
-              : "Current local label used for summaries and sync payloads."}
+              ? "Tap a category to update this transaction."
+              : "Current category for this transaction."}
           </AppText>
         </View>
         <AppPressable onPress={onEditToggle} style={styles.editButton}>
@@ -42,13 +41,15 @@ export function CategoryCard({
           </AppText>
         </AppPressable>
       </View>
-      <View style={styles.grid}>
-        {categories.map((category) => {
+      <AppFlashList
+        data={categories}
+        horizontal
+        keyExtractor={(category) => category.id}
+        renderItem={({ item: category }) => {
           const isActive = category.id === activeCategoryId;
 
           return (
             <AppPressable
-              key={category.id}
               disabled={!editing}
               onPress={() => onSelectCategory(category.id)}
               style={[
@@ -74,8 +75,16 @@ export function CategoryCard({
               </AppText>
             </AppPressable>
           );
-        })}
-      </View>
+        }}
+        ListEmptyComponent={
+          <AppText color="mutedText" variant="bodyMd">
+            No categories are stored in the database yet.
+          </AppText>
+        }
+        scrollEnabled
+        showsHorizontalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={styles.pillSeparator} />}
+      />
     </SurfaceCard>
   );
 }
@@ -98,11 +107,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.sm,
   },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
   pill: {
     alignItems: "center",
     borderRadius: Radii.full,
@@ -111,6 +115,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Sizes.sm + Sizes.xs / 4,
+  },
+  pillSeparator: {
+    width: Spacing.sm,
   },
   pillText: {
     fontFamily: font.bold,

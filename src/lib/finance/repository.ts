@@ -10,14 +10,19 @@ import type {
   CreateTransactionInput,
   DashboardTransactionRecord,
   FinanceSnapshot,
+  InsightAllocationRecord,
+  InsightSubscriptionRecord,
   ImportRecord,
   MonthlyTotalsRecord,
   OutboxOperation,
   OutboxStatus,
+  SpendingAlertRecord,
   SyncEntityType,
   SyncSnapshot,
   SyncStatus,
   TransactionRecord,
+  TrajectoryPointRecord,
+  TrajectoryRecord,
   UpdateTransactionInput,
 } from "@/lib/finance/types";
 import {
@@ -160,6 +165,7 @@ export function queueOutboxChange(input: {
          base_version = ?,
          dedupe_key = ?,
          status = 'pending',
+         attempt_count = 0,
          next_retry_at = NULL,
          last_error = NULL,
          updated_at = ?
@@ -336,6 +342,184 @@ export function getBreakdown(): BreakdownRecord[] {
     color: row.categoryColor,
     label: row.categoryLabel,
     value: formatMoney(row.amountMinor, "KES"),
+  }));
+}
+
+export function getInsightAllocations(): InsightAllocationRecord[] {
+  const currentMonth = monthKeyFromTimestamp(Date.now());
+  const rows = sqliteDatabase.getAllSync<{
+    amountMinor: number;
+    categoryColor: string;
+    categoryLabel: string;
+  }>(
+    `SELECT
+      cs.amount_minor AS amountMinor,
+      COALESCE(c.color, '#4b5563') AS categoryColor,
+      COALESCE(c.label, 'Other') AS categoryLabel
+     FROM category_summary cs
+     LEFT JOIN categories c ON c.id = cs.category_id
+     WHERE cs.month_key = ?
+     ORDER BY cs.amount_minor DESC`,
+    [currentMonth],
+  );
+
+  const total = rows.reduce((sum, row) => sum + row.amountMinor, 0);
+
+  return rows.map((row) => ({
+    amountLabel: formatMoney(row.amountMinor, "KES"),
+    color: row.categoryColor,
+    label: row.categoryLabel,
+    percentage: total > 0 ? Math.round((row.amountMinor / total) * 100) : 0,
+  }));
+}
+
+export function getTrajectory(): TrajectoryRecord | null {
+  const now = new Date();
+  const currentMonth = monthKeyFromTimestamp(now.getTime());
+  const monthRows = sqliteDatabase.getAllSync<{ day: number; amountMinor: number }>(
+    `SELECT
+      CAST(strftime('%d', transaction_at / 1000, 'unixepoch') AS INTEGER) AS day,
+      amount_minor AS amountMinor
+     FROM transactions
+     WHERE deleted_at IS NULL
+       AND user_id = ?
+       AND direction = 'expense'
+       AND strftime('%Y-%m', transaction_at / 1000, 'unixepoch') = ?
+     ORDER BY transaction_at ASC`,
+    [DEFAULT_USER_ID, currentMonth],
+  );
+
+  const currentTotals = getCurrentMonthTotals();
+  const totalMinor = currentTotals?.expenseMinor ?? 0;
+
+  if (monthRows.length === 0 && totalMinor === 0) {
+    return null;
+  }
+
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const weekCount = Math.max(Math.ceil(lastDay / 7), 1);
+  const weeklyTotals = Array.from({ length: weekCount }, () => 0);
+
+  for (const row of monthRows) {
+    const weekIndex = Math.min(Math.floor((row.day - 1) / 7), weekCount - 1);
+    weeklyTotals[weekIndex] += row.amountMinor;
+  }
+
+  const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousMonthKey = monthKeyFromTimestamp(previousMonthDate.getTime());
+  const previousExpenseMinor =
+    sqliteDatabase.getFirstSync<{ expenseMinor: number }>(
+      `SELECT expense_minor AS expenseMinor
+       FROM monthly_totals
+       WHERE month_key = ?`,
+      [previousMonthKey],
+    )?.expenseMinor ?? 0;
+
+  const changePercentage =
+    previousExpenseMinor > 0
+      ? Number((((totalMinor - previousExpenseMinor) / previousExpenseMinor) * 100).toFixed(1))
+      : null;
+  const trend =
+    changePercentage == null
+      ? "flat"
+      : changePercentage > 0
+        ? "up"
+        : changePercentage < 0
+          ? "down"
+          : "flat";
+
+  const monthLabel = now.toLocaleString("en-KE", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const points: TrajectoryPointRecord[] = weeklyTotals.map((valueMinor, index) => ({
+    label: `W${index + 1}`,
+    valueMinor,
+  }));
+
+  return {
+    changePercentage,
+    monthLabel,
+    points,
+    totalMinor,
+    trend,
+  };
+}
+
+export function getSpendingAlert(): SpendingAlertRecord | null {
+  const budgets = listBudgets();
+  const currentMonthTotals = getCurrentMonthTotals();
+
+  if (budgets.length === 0 && !currentMonthTotals) {
+    return null;
+  }
+
+  const worstBudget = budgets
+    .map((budget) => ({
+      categoryLabel: budget.categoryLabel,
+      overByMinor: budget.spentMinor - budget.amountMinor,
+    }))
+    .filter((budget) => budget.overByMinor > 0)
+    .sort((left, right) => right.overByMinor - left.overByMinor)[0];
+
+  const today = Math.max(new Date().getDate(), 1);
+  const burnRateMinor = currentMonthTotals
+    ? Math.round(currentMonthTotals.expenseMinor / today)
+    : 0;
+
+  if (worstBudget) {
+    return {
+      alertAmountMinor: worstBudget.overByMinor,
+      alertDescription: `${worstBudget.categoryLabel} is above budget this month.`,
+      alertTitle: `You overspent on ${worstBudget.categoryLabel}`,
+      burnRateMinor,
+      status: "over_budget",
+    };
+  }
+
+  return {
+    alertAmountMinor: null,
+    alertDescription: "No categories are above budget this month.",
+    alertTitle: "Spending is on track",
+    burnRateMinor,
+    status: "on_track",
+  };
+}
+
+export function getInsightSubscriptions(): InsightSubscriptionRecord[] {
+  const rows = sqliteDatabase.getAllSync<{
+    amountMinor: number;
+    count: number;
+    lastTransactionAt: number;
+    merchant: string;
+    categoryColor: string;
+  }>(
+    `SELECT
+      t.merchant AS merchant,
+      ROUND(AVG(t.amount_minor)) AS amountMinor,
+      COUNT(*) AS count,
+      MAX(t.transaction_at) AS lastTransactionAt,
+      COALESCE(c.color, '#4b5563') AS categoryColor
+     FROM transactions t
+     LEFT JOIN categories c ON c.id = t.category_id
+     WHERE t.deleted_at IS NULL
+       AND t.user_id = ?
+       AND t.direction = 'expense'
+       AND t.transaction_at >= ?
+     GROUP BY LOWER(t.merchant), COALESCE(c.color, '#4b5563')
+     HAVING COUNT(*) >= 2
+     ORDER BY MAX(t.transaction_at) DESC, COUNT(*) DESC
+     LIMIT 5`,
+    [DEFAULT_USER_ID, Date.now() - 180 * 24 * 60 * 60 * 1000],
+  );
+
+  return rows.map((row, index) => ({
+    accent: row.categoryColor,
+    amount: formatMoney(row.amountMinor, "KES"),
+    id: `${row.merchant}-${index}`,
+    meta: `${row.count} payments in the last 180 days`,
+    title: row.merchant,
   }));
 }
 
@@ -629,7 +813,11 @@ export function getFinanceSnapshot(args: {
     currentMonthTotals: getCurrentMonthTotals(),
     dashboardTransactions: getDashboardTransactions(),
     imports: listImports(),
+    insightAllocations: getInsightAllocations(),
+    insightSubscriptions: getInsightSubscriptions(),
+    spendingAlert: getSpendingAlert(),
     sync: getSyncSnapshot(args),
+    trajectory: getTrajectory(),
     transactionSections: buildTransactionSections(transactions),
     transactions,
   };

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
 import { Spacing } from "@/constants/theme";
@@ -23,19 +24,17 @@ export function TransactionSection({ section }: TransactionSectionProps) {
       <AppText color="mutedText" style={styles.sectionTitle} variant="labelMd">
         {section.title.toUpperCase()}
       </AppText>
-      <View style={styles.list}>
-        {section.data.map((transaction) => (
-          <TransactionListItem key={transaction.id} transaction={transaction} />
-        ))}
-      </View>
+      <AppFlashList
+        data={section.data}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        keyExtractor={(transaction) => transaction.id}
+        renderItem={({ item }) => <TransactionListItem transaction={item} />}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: {
-    gap: Spacing.sm,
-  },
   section: {
     gap: Spacing.md,
   },
@@ -43,5 +42,8 @@ const styles = StyleSheet.create({
     fontFamily: font.headerSemiBold,
     letterSpacing: 1.8,
     paddingHorizontal: Spacing.sm,
+  },
+  separator: {
+    height: Spacing.sm,
   },
 });

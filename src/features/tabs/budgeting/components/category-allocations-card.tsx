@@ -1,7 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { AppPressable } from "@/components/base/app-pressable";
-import { AppText } from "@/components/base/app-text";
+import { AppFlashList, AppPressable, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { ProgressBar } from "@/features/tabs/_components";
@@ -69,7 +68,7 @@ export function CategoryAllocationsCard({
             Add local budget
           </AppText>
           <AppText color="mutedText" style={styles.addCategoryMeta} variant="bodyMd">
-            This writes to SQLite first and queues a budget sync record.
+            Create a budget envelope for one of your categories.
           </AppText>
         </View>
         <AppText color="primary" style={styles.addCategoryAction} variant="labelMd">
@@ -77,10 +76,11 @@ export function CategoryAllocationsCard({
         </AppText>
       </AppPressable>
 
-      <View style={styles.categories}>
-        {categories.map((category) => (
+      <AppFlashList
+        data={categories}
+        keyExtractor={(category) => category.id}
+        renderItem={({ item: category }) => (
           <View
-            key={category.id}
             style={[
               styles.category,
               { backgroundColor: theme.colors.surfaceContainerLow },
@@ -179,8 +179,9 @@ export function CategoryAllocationsCard({
               </AppText>
             </View>
           </View>
-        ))}
-      </View>
+        )}
+        ItemSeparatorComponent={() => <View style={styles.categorySeparator} />}
+      />
     </View>
   );
 }
@@ -247,9 +248,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.sm,
   },
-  categories: {
-    gap: Spacing.md,
-  },
   category: {
     borderRadius: Radii.lg,
     gap: Spacing.md,
@@ -266,6 +264,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
     justifyContent: "space-between",
+  },
+  categorySeparator: {
+    height: Spacing.md,
   },
   categoryTitle: {
     fontFamily: font.headerSemiBold,

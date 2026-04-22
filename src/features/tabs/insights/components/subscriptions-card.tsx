@@ -1,21 +1,16 @@
 import { StyleSheet, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
-
-export type Subscription = {
-  accent: string;
-  amount: string;
-  meta: string;
-  title: string;
-};
+import type { InsightSubscriptionRecord } from "@/lib/finance";
 
 export type SubscriptionsCardProps = {
-  subscriptions: Subscription[];
+  subscriptions: InsightSubscriptionRecord[];
 };
 
 export function SubscriptionsCard({ subscriptions }: SubscriptionsCardProps) {
@@ -25,45 +20,56 @@ export function SubscriptionsCard({ subscriptions }: SubscriptionsCardProps) {
     <SurfaceCard style={styles.card}>
       <View style={styles.titleRow}>
         <AppText style={styles.title} variant="titleMd">
-          Subscriptions
+          Recurring Merchants
         </AppText>
-        <AppPressable>
+        <AppPressable disabled>
           <AppText color="secondary" style={styles.manage} variant="labelMd">
-            Manage All
+            Derived
           </AppText>
         </AppPressable>
       </View>
-      {subscriptions.map((subscription) => (
-        <View key={subscription.title} style={styles.row}>
-          <View
-            style={[
-              styles.logoTile,
-              {
-                backgroundColor: theme.colors.surfaceContainer,
-                borderColor: theme.colors.outlineVariant,
-              },
-            ]}
-          >
-            <AppText
-              style={[styles.logoText, { color: subscription.accent }]}
-              variant="labelMd"
-            >
-              {getInitials(subscription.title)}
-            </AppText>
-          </View>
-          <View style={styles.copy}>
-            <AppText style={styles.subscriptionTitle} variant="labelMd">
-              {subscription.title}
-            </AppText>
-            <AppText color="mutedText" style={styles.meta} variant="bodyMd">
-              {subscription.meta}
-            </AppText>
-          </View>
-          <AppText style={styles.amount} variant="labelMd">
-            {subscription.amount}
-          </AppText>
-        </View>
-      ))}
+      {subscriptions.length ? (
+        <AppFlashList
+          data={subscriptions}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          keyExtractor={(subscription) => subscription.id}
+          renderItem={({ item: subscription }) => (
+            <View style={styles.row}>
+              <View
+                style={[
+                  styles.logoTile,
+                  {
+                    backgroundColor: theme.colors.surfaceContainer,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+              >
+                <AppText
+                  style={[styles.logoText, { color: subscription.accent }]}
+                  variant="labelMd"
+                >
+                  {getInitials(subscription.title)}
+                </AppText>
+              </View>
+              <View style={styles.copy}>
+                <AppText style={styles.subscriptionTitle} variant="labelMd">
+                  {subscription.title}
+                </AppText>
+                <AppText color="mutedText" style={styles.meta} variant="bodyMd">
+                  {subscription.meta}
+                </AppText>
+              </View>
+              <AppText style={styles.amount} variant="labelMd">
+                {subscription.amount}
+              </AppText>
+            </View>
+          )}
+        />
+      ) : (
+        <AppText color="mutedText" variant="bodyMd">
+          Recurring merchants will appear after repeated expense activity is detected.
+        </AppText>
+      )}
     </SurfaceCard>
   );
 }
@@ -121,6 +127,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     minHeight: Sizes["11xl"],
     paddingVertical: Spacing.sm,
+  },
+  separator: {
+    height: Spacing.sm,
   },
   subscriptionTitle: {
     fontFamily: font.semiBold,

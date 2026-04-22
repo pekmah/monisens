@@ -11,17 +11,17 @@ import {
 } from "react";
 import { AppState } from "react-native";
 
-import { applyFinanceMigrations } from "@/lib/finance/migrations";
-import {
-  createBudget,
-  createTransaction,
-  getFinanceSnapshot,
-  softDeleteTransaction,
-  updateTransaction,
-} from "@/lib/finance/repository";
-import { ensureFinanceSeedData } from "@/lib/finance/seed";
-import { hasRemoteSync, runFinanceSync } from "@/lib/finance/sync-engine";
 import type { CreateTransactionInput, FinanceSnapshot, SyncEngineStatus } from "@/lib/finance/types";
+import {
+  bootstrapFinanceStore,
+  canUseRemoteSync,
+  createBudgetUseCase,
+  createTransactionUseCase,
+  deleteTransactionUseCase,
+  loadFinanceSnapshot,
+  runFinanceSyncUseCase,
+  updateTransactionUseCase,
+} from "@/lib/finance/use-cases";
 
 const FinanceContext = createContext<{
   createBudget: (input: {
@@ -56,8 +56,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   }, [searchText]);
 
   const refresh = useCallback(async (nextSearchText?: string) => {
-    const nextSnapshot = getFinanceSnapshot({
-      hasRemote: hasRemoteSync(),
+    const nextSnapshot = loadFinanceSnapshot({
       isOnline: onlineRef.current,
       searchText: nextSearchText ?? searchRef.current,
       status: syncStatus,
@@ -66,7 +65,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   }, [syncStatus]);
 
   const syncNow = useCallback(async () => {
-    if (!onlineRef.current || !hasRemoteSync()) {
+    if (!onlineRef.current || !canUseRemoteSync()) {
       setSyncStatus(!onlineRef.current ? "offline" : "disabled");
       await refresh();
       return;
@@ -74,7 +73,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
     setSyncStatus("syncing");
     await refresh();
-    const result = await runFinanceSync("manual");
+    const result = await runFinanceSyncUseCase("manual");
     setSyncStatus(result.status);
     await refresh();
     setSyncStatus("idle");
@@ -82,13 +81,13 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   }, [refresh]);
 
   const createLocalTransaction = useCallback(async (input: CreateTransactionInput) => {
-    const id = createTransaction(input);
+    const id = createTransactionUseCase(input);
     await refresh();
 
-    if (onlineRef.current && hasRemoteSync()) {
+    if (onlineRef.current && canUseRemoteSync()) {
       setSyncStatus("syncing");
       await refresh();
-      const result = await runFinanceSync("write");
+      const result = await runFinanceSyncUseCase("write");
       setSyncStatus(result.status);
       await refresh();
       setSyncStatus("idle");
@@ -100,13 +99,13 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   const createLocalBudget = useCallback(
     async (input: { amount: string; categoryId: string; monthKey?: string; notes?: string }) => {
-      const id = createBudget(input);
+      const id = createBudgetUseCase(input);
       await refresh();
 
-      if (onlineRef.current && hasRemoteSync()) {
+      if (onlineRef.current && canUseRemoteSync()) {
         setSyncStatus("syncing");
         await refresh();
-        const result = await runFinanceSync("write");
+        const result = await runFinanceSyncUseCase("write");
         setSyncStatus(result.status);
         await refresh();
         setSyncStatus("idle");
@@ -120,13 +119,13 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   const updateLocalTransaction = useCallback(
     async (id: string, input: Partial<CreateTransactionInput>) => {
-      updateTransaction(id, input);
+      updateTransactionUseCase(id, input);
       await refresh();
 
-      if (onlineRef.current && hasRemoteSync()) {
+      if (onlineRef.current && canUseRemoteSync()) {
         setSyncStatus("syncing");
         await refresh();
-        const result = await runFinanceSync("write");
+        const result = await runFinanceSyncUseCase("write");
         setSyncStatus(result.status);
         await refresh();
         setSyncStatus("idle");
@@ -138,13 +137,13 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   const deleteLocalTransaction = useCallback(
     async (id: string) => {
-      softDeleteTransaction(id);
+      deleteTransactionUseCase(id);
       await refresh();
 
-      if (onlineRef.current && hasRemoteSync()) {
+      if (onlineRef.current && canUseRemoteSync()) {
         setSyncStatus("syncing");
         await refresh();
-        const result = await runFinanceSync("write");
+        const result = await runFinanceSyncUseCase("write");
         setSyncStatus(result.status);
         await refresh();
         setSyncStatus("idle");
@@ -156,11 +155,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     try {
-      applyFinanceMigrations();
-      ensureFinanceSeedData();
+      bootstrapFinanceStore();
       setSnapshot(
-        getFinanceSnapshot({
-          hasRemote: hasRemoteSync(),
+        loadFinanceSnapshot({
           isOnline: onlineRef.current,
           searchText: "",
           status: "idle",
@@ -185,6 +182,14 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   }, [ready, refresh, searchText, syncStatus]);
 
   useEffect(() => {
+    if (!ready || !onlineRef.current || !canUseRemoteSync()) {
+      return;
+    }
+
+    void runFinanceSyncUseCase("launch").then(() => refresh());
+  }, [ready, refresh]);
+
+  useEffect(() => {
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
       const wasOnline = onlineRef.current;
@@ -192,16 +197,16 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       setSyncStatus(isConnected ? "idle" : "offline");
       void refresh();
 
-      if (isConnected && !wasOnline && hasRemoteSync()) {
-        void runFinanceSync("network_reconnect").then(() => refresh());
+      if (isConnected && !wasOnline && canUseRemoteSync()) {
+        void runFinanceSyncUseCase("network_reconnect").then(() => refresh());
       }
     });
 
     const appStateSubscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         void refresh();
-        if (onlineRef.current && hasRemoteSync()) {
-          void runFinanceSync("resume").then(() => refresh());
+        if (onlineRef.current && canUseRemoteSync()) {
+          void runFinanceSyncUseCase("resume").then(() => refresh());
         }
       }
     });

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
-import { AppButton, AppText, AppTextInput } from "@/components/base";
+import { AppButton, AppFlashList, AppText, AppTextInput } from "@/components/base";
 import { Radii, Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
@@ -16,9 +16,15 @@ export default function BudgetingScreen() {
   const theme = useAppTheme();
   const { createBudget, snapshot } = useFinance();
   const [creating, setCreating] = useState(false);
-  const [categoryId, setCategoryId] = useState(snapshot?.categories[0]?.id ?? "cat-food");
+  const [categoryId, setCategoryId] = useState(snapshot?.categories[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!categoryId && snapshot?.categories[0]) {
+      setCategoryId(snapshot.categories[0].id);
+    }
+  }, [categoryId, snapshot?.categories]);
 
   async function handleCreateBudget() {
     if (!amount.trim() || !categoryId) {
@@ -57,23 +63,44 @@ export default function BudgetingScreen() {
               placeholder="Dining and groceries"
               value={notes}
             />
-            <View style={styles.categoryRow}>
-              {snapshot?.categories.map((category) => {
-                const active = category.id === categoryId;
-                return (
-                  <AppButton
-                    key={category.id}
-                    onPress={() => setCategoryId(category.id)}
-                    title={category.label}
-                    variant={active ? "primary" : "secondary"}
-                  />
-                );
-              })}
-            </View>
+            {snapshot?.categories.length ? (
+              <AppFlashList
+                data={snapshot.categories}
+                horizontal
+                keyExtractor={(category) => category.id}
+                renderItem={({ item: category }) => {
+                  const active = category.id === categoryId;
+
+                  return (
+                    <AppButton
+                      onPress={() => setCategoryId(category.id)}
+                      title={category.label}
+                      variant={active ? "primary" : "secondary"}
+                    />
+                  );
+                }}
+                scrollEnabled
+                showsHorizontalScrollIndicator={false}
+                ItemSeparatorComponent={() => <View style={styles.categorySeparator} />}
+              />
+            ) : (
+              <AppText color="mutedText" variant="bodyMd">
+                No categories are stored in the database yet.
+              </AppText>
+            )}
             <View style={styles.actions}>
               <AppButton onPress={() => setCreating(false)} title="Cancel" variant="secondary" />
-              <AppButton onPress={() => void handleCreateBudget()} title="Save budget" />
+              <AppButton
+                disabled={!snapshot?.categories.length}
+                onPress={() => void handleCreateBudget()}
+                title="Save budget"
+              />
             </View>
+            {!snapshot?.categories.length ? (
+              <AppText color="mutedText" variant="bodyMd">
+                Add categories to the database before creating budgets.
+              </AppText>
+            ) : null}
           </View>
         ) : null}
         <CategoryAllocationsCard
@@ -90,10 +117,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
   },
-  categoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
+  categorySeparator: {
+    width: Spacing.sm,
   },
   content: {
     gap: Spacing.lg,

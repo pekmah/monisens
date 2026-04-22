@@ -126,10 +126,15 @@ export function BudgetOverviewCard({
 const styles = StyleSheet.create({
   amount: {
     fontFamily: font.headerExtraBold,
+    fontSize: FontSizes["5xl"],
+    flexShrink: 1,
+    letterSpacing: -1.2,
+    lineHeight: LineHeights["5xl"],
   },
   copy: {
     flex: 1,
     gap: Sizes.sm,
+    minWidth: 0,
   },
   daysBadge: {
     alignItems: "center",
@@ -218,6 +223,8 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
   },
   subtitle: {
+    fontSize: FontSizes.lg,
+    lineHeight: LineHeights.xl,
     maxWidth: Sizes["18xl"],
   },
 });

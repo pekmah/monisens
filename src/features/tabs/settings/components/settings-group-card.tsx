@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { StyleSheet, Switch, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
@@ -49,39 +50,43 @@ export function SettingsGroupCard({ group }: SettingsGroupCardProps) {
           {group.title}
         </AppText>
       </View>
-      {group.rows.map((row) => (
-        <AppPressable key={row.title} style={styles.settingRow}>
-          <View style={styles.settingCopy}>
-            <AppText style={styles.rowTitle} variant="labelMd">
-              {row.title}
-            </AppText>
-            <AppText color="mutedText" style={styles.rowMeta} variant="bodyMd">
-              {row.meta}
-            </AppText>
-          </View>
-          {typeof row.toggle === "boolean" ? (
-            <Switch
-              thumbColor={
-                row.toggle
-                  ? theme.colors.primary
-                  : theme.colors.surfaceContainerLowest
-              }
-              trackColor={{
-                false: theme.colors.surfaceContainerHighest,
-                true: theme.colors.primaryContainer,
-              }}
-              value={row.toggle}
-            />
-          ) : row.actionLabel ? (
-            <View style={styles.actionRow}>
-              <AppText color="mutedText" style={styles.actionLabel} variant="bodyMd">
-                {row.actionLabel}
+      <AppFlashList
+        data={group.rows}
+        keyExtractor={(row) => row.title}
+        renderItem={({ item: row }) => (
+          <AppPressable style={styles.settingRow}>
+            <View style={styles.settingCopy}>
+              <AppText style={styles.rowTitle} variant="labelMd">
+                {row.title}
               </AppText>
-              <Feather color={theme.colors.outline} name="chevron-right" size={18} />
+              <AppText color="mutedText" style={styles.rowMeta} variant="bodyMd">
+                {row.meta}
+              </AppText>
             </View>
-          ) : null}
-        </AppPressable>
-      ))}
+            {typeof row.toggle === "boolean" ? (
+              <Switch
+                thumbColor={
+                  row.toggle
+                    ? theme.colors.primary
+                    : theme.colors.surfaceContainerLowest
+                }
+                trackColor={{
+                  false: theme.colors.surfaceContainerHighest,
+                  true: theme.colors.primaryContainer,
+                }}
+                value={row.toggle}
+              />
+            ) : row.actionLabel ? (
+              <View style={styles.actionRow}>
+                <AppText color="mutedText" style={styles.actionLabel} variant="bodyMd">
+                  {row.actionLabel}
+                </AppText>
+                <Feather color={theme.colors.outline} name="chevron-right" size={18} />
+              </View>
+            ) : null}
+          </AppPressable>
+        )}
+      />
       <View
         style={[
           styles.cardGlow,
@@ -93,18 +98,6 @@ export function SettingsGroupCard({ group }: SettingsGroupCardProps) {
 }
 
 const styles = StyleSheet.create({
-  group: {
-    gap: Spacing.lg,
-    position: "relative",
-  },
-  groupHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  groupTitle: {
-    fontFamily: font.headerSemiBold,
-  },
   actionLabel: {
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.sm,
@@ -122,6 +115,18 @@ const styles = StyleSheet.create({
     right: -Sizes["5xl"],
     top: -Sizes["5xl"],
     width: Sizes["13xl"],
+  },
+  group: {
+    gap: Spacing.lg,
+    position: "relative",
+  },
+  groupHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  groupTitle: {
+    fontFamily: font.headerSemiBold,
   },
   iconTile: {
     alignItems: "center",

@@ -1,8 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { StyleSheet, Switch, View } from "react-native";
 
-import { AppPressable } from "@/components/base/app-pressable";
-import { AppText } from "@/components/base/app-text";
+import { AppFlashList, AppPressable, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
@@ -73,38 +72,44 @@ export function AppearanceCard() {
           { backgroundColor: theme.colors.surfaceContainerLow },
         ]}
       >
-        {modes.map((mode) => {
-          const selected = colorScheme === mode.value;
+        <AppFlashList
+          data={modes}
+          horizontal
+          keyExtractor={(mode) => mode.value}
+          renderItem={({ item: mode }) => {
+            const selected = colorScheme === mode.value;
 
-          return (
-            <AppPressable
-              key={mode.value}
-              onPress={() => setThemeOverride(mode.value)}
-              style={[
-                styles.segmentButton,
-                selected
-                  ? {
-                      backgroundColor: theme.colors.surfaceContainerLowest,
-                      borderColor: theme.colors.outlineVariant,
-                    }
-                  : undefined,
-              ]}
-            >
-              <Feather
-                color={selected ? theme.colors.primary : theme.colors.mutedText}
-                name={mode.icon}
-                size={16}
-              />
-              <AppText
-                color={selected ? "primary" : "mutedText"}
-                style={styles.segmentText}
-                variant="labelMd"
+            return (
+              <AppPressable
+                onPress={() => setThemeOverride(mode.value)}
+                style={[
+                  styles.segmentButton,
+                  selected
+                    ? {
+                        backgroundColor: theme.colors.surfaceContainerLowest,
+                        borderColor: theme.colors.outlineVariant,
+                      }
+                    : undefined,
+                ]}
               >
-                {mode.label}
-              </AppText>
-            </AppPressable>
-          );
-        })}
+                <Feather
+                  color={selected ? theme.colors.primary : theme.colors.mutedText}
+                  name={mode.icon}
+                  size={16}
+                />
+                <AppText
+                  color={selected ? "primary" : "mutedText"}
+                  style={styles.segmentText}
+                  variant="labelMd"
+                >
+                  {mode.label}
+                </AppText>
+              </AppPressable>
+            );
+          }}
+          scrollEnabled={false}
+          ItemSeparatorComponent={() => <View style={styles.segmentSeparator} />}
+        />
       </View>
 
       {themeOverride ? (
@@ -237,23 +242,6 @@ const styles = StyleSheet.create({
   card: {
     gap: Spacing.lg,
   },
-  header: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  headerCopy: {
-    flex: 1,
-    gap: Sizes.xxs,
-    minWidth: 0,
-  },
-  iconTile: {
-    alignItems: "center",
-    borderRadius: Radii.lg,
-    height: Sizes["6xl"],
-    justifyContent: "center",
-    width: Sizes["6xl"],
-  },
   fontButton: {
     alignItems: "center",
     borderRadius: Radii.md,
@@ -297,14 +285,31 @@ const styles = StyleSheet.create({
     borderWidth: Sizes.hairline,
     flex: 1,
     gap: Sizes.xxs,
-    minHeight: Sizes["10xl"],
     justifyContent: "center",
+    minHeight: Sizes["10xl"],
     paddingHorizontal: Spacing.md,
   },
   fontSection: {
     borderRadius: Radii.lg,
     gap: Spacing.md,
     padding: Spacing.md,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: Sizes.xxs,
+    minWidth: 0,
+  },
+  iconTile: {
+    alignItems: "center",
+    borderRadius: Radii.lg,
+    height: Sizes["6xl"],
+    justifyContent: "center",
+    width: Sizes["6xl"],
   },
   meta: {
     fontSize: FontSizes.xs,
@@ -325,8 +330,6 @@ const styles = StyleSheet.create({
   },
   segment: {
     borderRadius: Radii.lg,
-    flexDirection: "row",
-    gap: Spacing.sm,
     padding: Spacing.xs,
   },
   segmentButton: {
@@ -334,11 +337,15 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     borderRadius: Radii.md,
     borderWidth: Sizes.hairline,
-    flex: 1,
     flexDirection: "row",
     gap: Spacing.sm,
     justifyContent: "center",
     minHeight: Sizes["9xl"],
+    minWidth: Sizes["13xl"],
+    paddingHorizontal: Spacing.lg,
+  },
+  segmentSeparator: {
+    width: Spacing.sm,
   },
   segmentText: {
     fontFamily: font.bold,

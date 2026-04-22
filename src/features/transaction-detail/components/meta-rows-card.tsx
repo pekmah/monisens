@@ -1,5 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
@@ -24,37 +25,40 @@ export function MetaRowsCard({ rows }: MetaRowsCardProps) {
       <AppText style={styles.title} variant="titleMd">
         Receipt metadata
       </AppText>
-      {rows.map((row) => (
-        <View
-          key={row.label}
-          style={[
-            styles.row,
-            { borderBottomColor: theme.colors.outlineVariant },
-          ]}
-        >
-          <AppText color="mutedText" style={styles.label} variant="labelMd">
-            {row.label}
-          </AppText>
+      <AppFlashList
+        data={rows}
+        keyExtractor={(row) => row.label}
+        renderItem={({ item: row }) => (
           <View
-            style={
-              row.tone === "success"
-                ? [
-                    styles.valuePill,
-                    { backgroundColor: theme.colors.primaryFixed },
-                  ]
-                : styles.valueWrap
-            }
+            style={[
+              styles.row,
+              { borderBottomColor: theme.colors.outlineVariant },
+            ]}
           >
-            <AppText
-              color={row.tone === "success" ? "onPrimaryFixed" : "text"}
-              style={styles.value}
-              variant="bodyLg"
-            >
-              {row.value}
+            <AppText color="mutedText" style={styles.label} variant="labelMd">
+              {row.label}
             </AppText>
+            <View
+              style={
+                row.tone === "success"
+                  ? [
+                      styles.valuePill,
+                      { backgroundColor: theme.colors.primaryFixed },
+                    ]
+                  : styles.valueWrap
+              }
+            >
+              <AppText
+                color={row.tone === "success" ? "onPrimaryFixed" : "text"}
+                style={styles.value}
+                variant="bodyLg"
+              >
+                {row.value}
+              </AppText>
+            </View>
           </View>
-        </View>
-      ))}
+        )}
+      />
     </SurfaceCard>
   );
 }

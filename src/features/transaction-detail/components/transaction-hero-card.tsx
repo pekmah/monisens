@@ -1,4 +1,3 @@
-import { Feather } from "@expo/vector-icons";
 import { StyleSheet, View } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
@@ -18,33 +17,9 @@ export function TransactionHeroCard({
   return (
     <SurfaceCard elevated style={styles.hero}>
       <View style={styles.topRow}>
-        <View style={[styles.icon, { backgroundColor: theme.colors.primaryFixed }]}> 
+        <View style={[styles.icon, { backgroundColor: theme.colors.primaryFixed }]}>
           <AppText color="onPrimaryFixed" style={styles.initials} variant="labelMd">
             {getInitials(transaction.merchant)}
-          </AppText>
-        </View>
-        <View
-          style={[
-            styles.statusPill,
-            {
-              backgroundColor:
-                transaction.syncStatus === "synced"
-                  ? theme.colors.primaryFixed
-                  : theme.colors.secondaryFixed,
-            },
-          ]}
-        >
-          <Feather
-            color={
-              transaction.syncStatus === "synced"
-                ? theme.colors.primary
-                : theme.colors.secondary
-            }
-            name={transaction.syncStatus === "synced" ? "check-circle" : "refresh-cw"}
-            size={14}
-          />
-          <AppText color="onPrimaryFixed" style={styles.statusText} variant="labelMd">
-            {transaction.syncStatus === "synced" ? "Synced" : "Pending sync"}
           </AppText>
         </View>
       </View>
@@ -61,7 +36,7 @@ export function TransactionHeroCard({
           )}
         </AppText>
         <AppText color="mutedText" style={styles.subtitle} variant="bodyMd">
-          {transaction.notes || `${transaction.source.toUpperCase()} transaction stored locally first.`}
+          {transaction.notes || `${transaction.source.toUpperCase()} transaction`}
         </AppText>
       </View>
 
@@ -131,19 +106,6 @@ const styles = StyleSheet.create({
   overline: {
     fontSize: FontSizes.xs,
     letterSpacing: 1.2,
-    lineHeight: LineHeights.xs,
-  },
-  statusPill: {
-    alignItems: "center",
-    borderRadius: Radii.full,
-    flexDirection: "row",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  statusText: {
-    fontFamily: font.bold,
-    fontSize: FontSizes.xs,
     lineHeight: LineHeights.xs,
   },
   subtitle: {

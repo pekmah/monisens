@@ -158,5 +158,10 @@ export function applyFinanceMigrations() {
   }
 
   sqliteDatabase.execSync(MIGRATIONS);
+  sqliteDatabase.execSync(`
+    UPDATE sync_outbox
+    SET attempt_count = COALESCE(attempt_count, 0)
+    WHERE attempt_count IS NULL;
+  `);
   migrated = true;
 }

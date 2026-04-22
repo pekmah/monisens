@@ -6,10 +6,29 @@ import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatMoney } from "@/lib/finance";
+import { formatMoney, type SpendingAlertRecord } from "@/lib/finance";
 
-export function SpendingAlertCard() {
+export function SpendingAlertCard({
+  spendingAlert,
+}: {
+  spendingAlert: SpendingAlertRecord | null;
+}) {
   const theme = useAppTheme();
+
+  if (!spendingAlert) {
+    return (
+      <SurfaceCard style={styles.emptyCard} tone="low">
+        <AppText style={styles.emptyTitle} variant="titleMd">
+          Spending Alert
+        </AppText>
+        <AppText color="mutedText" style={styles.description} variant="bodyMd">
+          Budget alerts will appear once you have budget and spending activity.
+        </AppText>
+      </SurfaceCard>
+    );
+  }
+
+  const isOverBudget = spendingAlert.status === "over_budget";
 
   return (
     <View style={styles.grid}>
@@ -17,28 +36,41 @@ export function SpendingAlertCard() {
         style={[
           styles.alert,
           {
-            backgroundColor: `${theme.colors.tertiary}14`,
-            borderLeftColor: theme.colors.tertiary,
+            backgroundColor: isOverBudget
+              ? `${theme.colors.tertiary}14`
+              : `${theme.colors.primary}14`,
+            borderLeftColor: isOverBudget ? theme.colors.tertiary : theme.colors.primary,
           },
         ]}
       >
         <Feather
-          color={theme.colors.tertiary}
-          name="alert-triangle"
+          color={isOverBudget ? theme.colors.tertiary : theme.colors.primary}
+          name={isOverBudget ? "alert-triangle" : "check-circle"}
           size={35}
           style={styles.watermark}
         />
-        <AppText color="tertiary" style={styles.overline} variant="labelMd">
-          SPENDING ALERT
+        <AppText
+          color={isOverBudget ? "tertiary" : "primary"}
+          style={styles.overline}
+          variant="labelMd"
+        >
+          {isOverBudget ? "SPENDING ALERT" : "BUDGET STATUS"}
         </AppText>
         <AppText style={styles.alertTitle} variant="titleMd">
-          You overspent on transport by{" "}
-          <AppText color="tertiary" style={styles.alertTitle} variant="titleMd">
-            {formatMoney(200000, "KES")}
-          </AppText>
+          {spendingAlert.alertTitle}
+          {spendingAlert.alertAmountMinor ? " by " : ""}
+          {spendingAlert.alertAmountMinor ? (
+            <AppText
+              color={isOverBudget ? "tertiary" : "primary"}
+              style={styles.alertTitle}
+              variant="titleMd"
+            >
+              {formatMoney(spendingAlert.alertAmountMinor, "KES")}
+            </AppText>
+          ) : null}
         </AppText>
         <AppText color="mutedText" style={styles.description} variant="bodyMd">
-          Commute costs are 15% higher than your set budget this month.
+          {spendingAlert.alertDescription}
         </AppText>
       </SurfaceCard>
 
@@ -50,10 +82,10 @@ export function SpendingAlertCard() {
           DAILY BURN RATE
         </AppText>
         <AppText style={styles.burnAmount} variant="headlineSm">
-          {formatMoney(150000, "KES")}
+          {formatMoney(spendingAlert.burnRateMinor, "KES")}
         </AppText>
         <AppText color="mutedText" style={styles.description} variant="bodyMd">
-          Average daily expenditure
+          Average daily expenditure this month
         </AppText>
       </SurfaceCard>
     </View>
@@ -83,6 +115,12 @@ const styles = StyleSheet.create({
   description: {
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.md,
+  },
+  emptyCard: {
+    gap: Spacing.sm,
+  },
+  emptyTitle: {
+    fontFamily: font.headerSemiBold,
   },
   grid: {
     gap: Spacing.lg,

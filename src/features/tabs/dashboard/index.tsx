@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
@@ -22,8 +23,7 @@ import {
   TransactionRow,
 } from "@/features/tabs/dashboard/components";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFinance } from "@/lib/finance";
-import { formatMoney } from "@/lib/finance";
+import { formatMoney, useFinance } from "@/lib/finance";
 
 export default function DashboardScreen() {
   const theme = useAppTheme();
@@ -75,11 +75,6 @@ export default function DashboardScreen() {
                   {formatMoney(spendable, "KES")}
                 </AppText>
               </View>
-              <View style={styles.availablePill}>
-                <AppText color="onPrimary" style={styles.availablePillText} variant="labelMd">
-                  {snapshot?.sync.pendingOutboxCount ?? 0} queued for sync
-                </AppText>
-              </View>
             </View>
             <ProgressBar
               color={theme.colors.onPrimaryContainer}
@@ -108,9 +103,12 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.transactionList}>
               {snapshot?.dashboardTransactions.length ? (
-                snapshot.dashboardTransactions.map((transaction) => (
-                  <TransactionRow key={transaction.id} {...transaction} />
-                ))
+                <AppFlashList
+                  data={snapshot.dashboardTransactions}
+                  ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+                  keyExtractor={(transaction) => transaction.id}
+                  renderItem={({ item }) => <TransactionRow {...item} />}
+                />
               ) : (
                 <AppText color="mutedText" variant="bodyMd">
                   No transactions stored locally yet.
@@ -145,33 +143,46 @@ export default function DashboardScreen() {
               />
               <View style={styles.legendGrid}>
                 {snapshot?.breakdown.length ? (
-                  snapshot.breakdown.map((item) => (
-                    <View key={item.label} style={styles.legendItem}>
+                  <AppFlashList
+                    data={snapshot.breakdown}
+                    ItemSeparatorComponent={() => <View style={styles.legendSeparator} />}
+                    keyExtractor={(item) => item.label}
+                    numColumns={2}
+                    renderItem={({ item, index }) => (
                       <View
                         style={[
-                          styles.legendDot,
-                          { backgroundColor: item.color },
+                          styles.legendColumn,
+                          index % 2 === 0 ? styles.legendColumnLeft : styles.legendColumnRight,
                         ]}
-                      />
-                      <View style={styles.legendCopy}>
-                        <AppText
-                          color="mutedText"
-                          numberOfLines={1}
-                          style={styles.legendLabel}
-                          variant="labelMd"
-                        >
-                          {item.label}
-                        </AppText>
-                        <AppText
-                          numberOfLines={1}
-                          style={styles.legendValue}
-                          variant="labelMd"
-                        >
-                          {item.value}
-                        </AppText>
+                      >
+                        <View style={styles.legendItem}>
+                          <View
+                            style={[
+                              styles.legendDot,
+                              { backgroundColor: item.color },
+                            ]}
+                          />
+                          <View style={styles.legendCopy}>
+                            <AppText
+                              color="mutedText"
+                              numberOfLines={1}
+                              style={styles.legendLabel}
+                              variant="labelMd"
+                            >
+                              {item.label}
+                            </AppText>
+                            <AppText
+                              numberOfLines={1}
+                              style={styles.legendValue}
+                              variant="labelMd"
+                            >
+                              {item.value}
+                            </AppText>
+                          </View>
+                        </View>
                       </View>
-                    </View>
-                  ))
+                    )}
+                  />
                 ) : (
                   <AppText color="mutedText" variant="bodyMd">
                     Expense categories will appear after local transactions are stored.
@@ -193,17 +204,6 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  availablePill: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Sizes.xs,
-  },
-  availablePillText: {
-    fontFamily: font.medium,
-    fontSize: FontSizes.xs,
-    lineHeight: LineHeights.xs,
-  },
   bentoGrid: {
     gap: Spacing.lg,
   },
@@ -255,11 +255,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     justifyContent: "space-between",
   },
-  heroSecondaryAmount: {
-    fontFamily: font.headerSemiBold,
-    fontSize: FontSizes.lg,
-    lineHeight: LineHeights.xl,
-  },
   heroOrb: {
     backgroundColor: "rgba(255,255,255,0.09)",
     borderRadius: Radii.full,
@@ -269,10 +264,24 @@ const styles = StyleSheet.create({
     top: -Sizes["4xl"],
     width: Sizes["18xl"],
   },
+  heroSecondaryAmount: {
+    fontFamily: font.headerSemiBold,
+    fontSize: FontSizes.lg,
+    lineHeight: LineHeights.xl,
+  },
   legendCopy: {
     flex: 1,
     gap: Sizes.xxs,
     minWidth: Sizes.none,
+  },
+  legendColumn: {
+    flex: 1,
+  },
+  legendColumnLeft: {
+    paddingRight: Spacing.sm,
+  },
+  legendColumnRight: {
+    paddingLeft: Spacing.sm,
   },
   legendDot: {
     borderRadius: Radii.full,
@@ -291,8 +300,14 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.sm,
   },
+  legendSeparator: {
+    height: Spacing.md,
+  },
   legendValue: {
     fontFamily: font.headerSemiBold,
+  },
+  listSeparator: {
+    height: Spacing.md,
   },
   monthPill: {
     borderRadius: Radii.full,

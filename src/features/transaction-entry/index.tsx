@@ -1,9 +1,10 @@
 import { Stack, router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import {
   AppButton,
+  AppFlashList,
   AppPressable,
   AppText,
   AppTextInput,
@@ -34,7 +35,7 @@ export default function TransactionEntryScreen() {
   const [notes, setNotes] = useState("");
   const [accountLabel, setAccountLabel] = useState("Primary Wallet");
   const [direction, setDirection] = useState<TransactionDirection>("expense");
-  const [categoryId, setCategoryId] = useState<string>(snapshot?.categories[0]?.id ?? "cat-food");
+  const [categoryId, setCategoryId] = useState<string>(snapshot?.categories[0]?.id ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +43,12 @@ export default function TransactionEntryScreen() {
     snapshot?.categories.find((category) => category.id === categoryId) ??
     snapshot?.categories[0] ??
     null;
+
+  useEffect(() => {
+    if (!categoryId && snapshot?.categories[0]) {
+      setCategoryId(snapshot.categories[0].id);
+    }
+  }, [categoryId, snapshot?.categories]);
 
   const isReady = merchant.trim().length > 0 && amount.trim().length > 0 && categoryId.length > 0;
 
@@ -108,14 +115,14 @@ export default function TransactionEntryScreen() {
               TRANSACTION ENTRY
             </AppText>
             <AppText style={styles.title} variant="titleMd">
-              Write locally first
+              New transaction
             </AppText>
             <AppText
               color="mutedText"
               style={styles.description}
               variant="bodyMd"
             >
-              This saves to SQLite immediately, updates summaries locally, and queues background sync if remote transport is configured.
+              Capture the transaction details and save them to your ledger.
             </AppText>
           </View>
         </View>
@@ -129,12 +136,15 @@ export default function TransactionEntryScreen() {
           <AppText style={styles.sectionTitle} variant="titleMd">
             Direction
           </AppText>
-          <View style={styles.segmentRow}>
-            {directionOptions.map((option) => {
+          <AppFlashList
+            data={directionOptions}
+            horizontal
+            keyExtractor={(option) => option.key}
+            renderItem={({ item: option }) => {
               const isActive = option.key === direction;
+
               return (
                 <AppPressable
-                  key={option.key}
                   onPress={() => setDirection(option.key)}
                   style={[
                     styles.segment,
@@ -154,8 +164,10 @@ export default function TransactionEntryScreen() {
                   </AppText>
                 </AppPressable>
               );
-            })}
-          </View>
+            }}
+            scrollEnabled={false}
+            ItemSeparatorComponent={() => <View style={styles.segmentSeparator} />}
+          />
         </View>
 
         <View
@@ -194,7 +206,7 @@ export default function TransactionEntryScreen() {
               value={accountLabel}
             />
             <AppTextInput
-              helperText="Optional context used in the detail view and future sync payloads."
+              helperText="Optional context shown on the transaction detail screen."
               label="Notes"
               multiline
               numberOfLines={4}
@@ -215,43 +227,55 @@ export default function TransactionEntryScreen() {
           <AppText style={styles.sectionTitle} variant="titleMd">
             Category
           </AppText>
-          <View style={styles.categoryGrid}>
-            {snapshot?.categories.map((category) => {
-              const isActive = category.id === categoryId;
-              return (
-                <AppPressable
-                  key={category.id}
-                  onPress={() => setCategoryId(category.id)}
-                  style={[
-                    styles.categoryPill,
-                    {
-                      backgroundColor: isActive
-                        ? `${category.color}20`
-                        : theme.colors.surfaceContainerLow,
-                      borderColor: isActive
-                        ? category.color
-                        : theme.colors.outlineVariant,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[styles.categoryDot, { backgroundColor: category.color }]}
-                  />
-                  <AppText
+          {snapshot?.categories.length ? (
+            <AppFlashList
+              data={snapshot.categories}
+              horizontal
+              keyExtractor={(category) => category.id}
+              renderItem={({ item: category }) => {
+                const isActive = category.id === categoryId;
+
+                return (
+                  <AppPressable
+                    onPress={() => setCategoryId(category.id)}
                     style={[
-                      styles.categoryText,
+                      styles.categoryPill,
                       {
-                        color: isActive ? category.color : theme.colors.text,
+                        backgroundColor: isActive
+                          ? `${category.color}20`
+                          : theme.colors.surfaceContainerLow,
+                        borderColor: isActive
+                          ? category.color
+                          : theme.colors.outlineVariant,
                       },
                     ]}
-                    variant="labelMd"
                   >
-                    {category.label}
-                  </AppText>
-                </AppPressable>
-              );
-            })}
-          </View>
+                    <View
+                      style={[styles.categoryDot, { backgroundColor: category.color }]}
+                    />
+                    <AppText
+                      style={[
+                        styles.categoryText,
+                        {
+                          color: isActive ? category.color : theme.colors.text,
+                        },
+                      ]}
+                      variant="labelMd"
+                    >
+                      {category.label}
+                    </AppText>
+                  </AppPressable>
+                );
+              }}
+              scrollEnabled
+              showsHorizontalScrollIndicator={false}
+              ItemSeparatorComponent={() => <View style={styles.categorySeparator} />}
+            />
+          ) : (
+            <AppText color="mutedText" variant="bodyMd">
+              No categories are stored in the database yet.
+            </AppText>
+          )}
         </View>
 
         <View
@@ -261,7 +285,7 @@ export default function TransactionEntryScreen() {
           ]}
         >
           <AppText color="mutedText" style={styles.previewEyebrow} variant="labelMd">
-            LOCAL PREVIEW
+            PREVIEW
           </AppText>
           <AppText style={styles.previewTitle} variant="titleMd">
             {merchant.trim() || "New transaction"}
@@ -271,7 +295,7 @@ export default function TransactionEntryScreen() {
             {previewAmount}
           </AppText>
           <AppText color="mutedText" variant="bodyMd">
-            {selectedCategory?.label || "Choose a category"} · queued for background sync after save
+            {selectedCategory?.label || "Choose a category"}
           </AppText>
           {error ? (
             <AppText color="error" variant="bodyMd">
@@ -310,11 +334,6 @@ const styles = StyleSheet.create({
     height: Sizes.sm,
     width: Sizes.sm,
   },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
   categoryPill: {
     alignItems: "center",
     borderRadius: Radii.full,
@@ -323,6 +342,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  categorySeparator: {
+    width: Spacing.sm,
   },
   categoryText: {
     fontFamily: font.medium,
@@ -373,15 +395,14 @@ const styles = StyleSheet.create({
   },
   segment: {
     borderRadius: Radii.full,
-    flex: 1,
-    minHeight: Sizes["9xl"],
     justifyContent: "center",
-    paddingHorizontal: Spacing.md,
+    minHeight: Sizes["9xl"],
+    minWidth: Sizes["15xl"],
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
-  segmentRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
+  segmentSeparator: {
+    width: Spacing.sm,
   },
   segmentText: {
     textAlign: "center",

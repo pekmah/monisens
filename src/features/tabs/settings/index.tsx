@@ -1,5 +1,6 @@
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
@@ -46,9 +47,12 @@ export default function SettingsScreen() {
       >
         <SettingsIntroCard />
         <AppearanceCard />
-        {groups.map((group) => (
-          <SettingsGroupCard group={group} key={group.title} />
-        ))}
+        <AppFlashList
+          data={groups}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          keyExtractor={(group) => group.title}
+          renderItem={({ item }) => <SettingsGroupCard group={item} />}
+        />
         <DataControlsCard />
         <BackupCard />
         <SettingsFooter />
@@ -61,5 +65,8 @@ const styles = StyleSheet.create({
   content: {
     gap: Spacing.xl,
     paddingBottom: Sizes["15xl"] + Spacing.sm,
+  },
+  separator: {
+    height: Spacing.xl,
   },
 });

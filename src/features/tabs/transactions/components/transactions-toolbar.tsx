@@ -9,14 +9,12 @@ import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type TransactionsToolbarProps = {
-  pendingCount: number;
   searchText: string;
   totalCount: number;
   onSearchTextChange: (value: string) => void;
 };
 
 export function TransactionsToolbar({
-  pendingCount,
   searchText,
   totalCount,
   onSearchTextChange,
@@ -28,20 +26,10 @@ export function TransactionsToolbar({
       <View style={styles.headerRow}>
         <View style={styles.titleWrap}>
           <AppText color="primary" variant="labelMd">
-            LOCAL-FIRST LEDGER
+            TRANSACTIONS
           </AppText>
           <AppText style={styles.title} variant="titleMd">
-            {totalCount} transactions on device
-          </AppText>
-        </View>
-        <View
-          style={[
-            styles.statusPill,
-            { backgroundColor: theme.colors.surfaceContainerHigh },
-          ]}
-        >
-          <AppText color="mutedText" style={styles.statusText} variant="labelMd">
-            {pendingCount > 0 ? `${pendingCount} pending sync` : "In sync locally"}
+            {totalCount} transactions
           </AppText>
         </View>
       </View>
@@ -101,14 +89,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     minHeight: Sizes["11xl"],
     paddingHorizontal: Spacing.lg,
-  },
-  statusPill: {
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  statusText: {
-    fontFamily: font.medium,
   },
   title: {
     fontFamily: font.headerSemiBold,

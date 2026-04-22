@@ -170,6 +170,42 @@ export type BreakdownRecord = {
   value: string;
 };
 
+export type InsightAllocationRecord = {
+  amountLabel: string;
+  color: string;
+  label: string;
+  percentage: number;
+};
+
+export type InsightSubscriptionRecord = {
+  accent: string;
+  amount: string;
+  id: string;
+  meta: string;
+  title: string;
+};
+
+export type SpendingAlertRecord = {
+  alertAmountMinor: number | null;
+  alertDescription: string;
+  alertTitle: string;
+  burnRateMinor: number;
+  status: "on_track" | "over_budget";
+};
+
+export type TrajectoryPointRecord = {
+  label: string;
+  valueMinor: number;
+};
+
+export type TrajectoryRecord = {
+  changePercentage: number | null;
+  monthLabel: string;
+  points: TrajectoryPointRecord[];
+  totalMinor: number;
+  trend: "down" | "flat" | "up";
+};
+
 export type SyncSnapshot = {
   errorMessage: string | null;
   hasRemote: boolean;
@@ -191,7 +227,11 @@ export type FinanceSnapshot = {
   currentMonthTotals: MonthlyTotalsRecord | null;
   dashboardTransactions: DashboardTransactionRecord[];
   imports: ImportRecord[];
+  insightAllocations: InsightAllocationRecord[];
+  insightSubscriptions: InsightSubscriptionRecord[];
+  spendingAlert: SpendingAlertRecord | null;
   sync: SyncSnapshot;
+  trajectory: TrajectoryRecord | null;
   transactionSections: TransactionSectionRecord[];
   transactions: TransactionRecord[];
 };

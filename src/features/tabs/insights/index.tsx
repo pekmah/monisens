@@ -10,37 +10,11 @@ import {
   SubscriptionsCard,
   TrajectoryCard,
 } from "@/features/tabs/insights/components";
-import { formatMoney } from "@/lib/finance";
-
-const allocations = [
-  { color: "#fb923c", label: "Food & Drink", value: 42 },
-  { color: "#3b82f6", label: "Transport", value: 28 },
-  { color: "#a855f7", label: "Entertainment", value: 15 },
-  { color: "#22c55e", label: "Utilities", value: 15 },
-];
-
-const subscriptions = [
-  {
-    accent: "#e11d48",
-    amount: formatMoney(120000, "KES"),
-    meta: "Due in 3 days",
-    title: "Netflix Premium",
-  },
-  {
-    accent: "#16a34a",
-    amount: formatMoney(95000, "KES"),
-    meta: "Due in 12 days",
-    title: "Spotify Family",
-  },
-  {
-    accent: "#2563eb",
-    amount: formatMoney(40000, "KES"),
-    meta: "Due in 15 days",
-    title: "Google One 2TB",
-  },
-];
+import { useFinance } from "@/lib/finance";
 
 export default function InsightsScreen() {
+  const { snapshot } = useFinance();
+
   return (
     <TabScreen>
       <ScrollView
@@ -55,12 +29,15 @@ export default function InsightsScreen() {
             Financial Trajectory
           </AppText>
         </View>
-        <TrajectoryCard />
+
+        <TrajectoryCard trajectory={snapshot?.trajectory ?? null} />
+
         <View style={styles.insightGrid}>
-          <SpendingAlertCard />
-          <CategoryAllocationCard allocations={allocations} />
+          <SpendingAlertCard spendingAlert={snapshot?.spendingAlert ?? null} />
+          <CategoryAllocationCard allocations={snapshot?.insightAllocations ?? []} />
         </View>
-        <SubscriptionsCard subscriptions={subscriptions} />
+
+        <SubscriptionsCard subscriptions={snapshot?.insightSubscriptions ?? []} />
       </ScrollView>
     </TabScreen>
   );

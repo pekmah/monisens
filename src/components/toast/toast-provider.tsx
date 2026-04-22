@@ -17,8 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppPressable } from '@/components/base/app-pressable';
-import { AppText } from '@/components/base/app-text';
+import { AppFlashList, AppPressable, AppText } from '@/components/base';
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -150,11 +149,16 @@ export function ToastProvider({ children }: PropsWithChildren) {
             top: Math.max(insets.top, theme.spacing.lg) + theme.spacing.sm,
           },
         ]}>
-        {toasts.map((toast, index) => (
-          <View key={toast.id} style={index === 0 ? undefined : styles.stackedToast}>
-            <ToastCard onDismiss={() => dismissToast(toast.id)} toast={toast} />
-          </View>
-        ))}
+        <AppFlashList
+          data={toasts}
+          keyExtractor={(toast) => toast.id}
+          renderItem={({ item: toast, index }) => (
+            <View style={index === 0 ? undefined : styles.stackedToast}>
+              <ToastCard onDismiss={() => dismissToast(toast.id)} toast={toast} />
+            </View>
+          )}
+          scrollEnabled={false}
+        />
       </View>
     </ToastContext.Provider>
   );
@@ -222,13 +226,11 @@ function ToastCard({
         {toast.description ? (
           <>
             {canExpand ? (
-              <>
-                <Animated.View style={[styles.descriptionClip, animatedDescriptionStyle]}>
-                  <AppText style={[styles.description, { color: meta.body }]} variant="bodyMd">
-                    {toast.description}
-                  </AppText>
-                </Animated.View>
-              </>
+              <Animated.View style={[styles.descriptionClip, animatedDescriptionStyle]}>
+                <AppText style={[styles.description, { color: meta.body }]} variant="bodyMd">
+                  {toast.description}
+                </AppText>
+              </Animated.View>
             ) : (
               <AppText style={[styles.description, { color: meta.body }]} variant="bodyMd">
                 {toast.description}
@@ -314,12 +316,12 @@ const styles = StyleSheet.create({
   },
   toast: {
     alignItems: 'center',
+    borderRadius: Radii.md + Sizes.xxs,
     borderWidth: Sizes.hairline,
     flexDirection: 'row',
     gap: Sizes.md + Sizes.xxs,
     minHeight: Sizes['13xl'] - Sizes.xxs,
     paddingHorizontal: Sizes['2xl'],
     paddingVertical: Sizes.md + Sizes.xxs,
-    borderRadius: Radii.md + Sizes.xxs,
   },
 });

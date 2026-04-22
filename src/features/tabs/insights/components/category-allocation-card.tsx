@@ -1,18 +1,14 @@
 import { StyleSheet, View } from "react-native";
 
+import { AppFlashList } from "@/components/base";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { ProgressBar, SurfaceCard } from "@/features/tabs/_components";
-
-export type Allocation = {
-  color: string;
-  label: string;
-  value: number;
-};
+import type { InsightAllocationRecord } from "@/lib/finance";
 
 export type CategoryAllocationCardProps = {
-  allocations: Allocation[];
+  allocations: InsightAllocationRecord[];
 };
 
 export function CategoryAllocationCard({
@@ -23,22 +19,38 @@ export function CategoryAllocationCard({
       <AppText style={styles.title} variant="titleMd">
         Category Allocation
       </AppText>
-      {allocations.map((item) => (
-        <View key={item.label} style={styles.allocation}>
-          <View style={styles.allocationHeader}>
-            <View style={styles.labelRow}>
-              <View style={[styles.dot, { backgroundColor: item.color }]} />
-              <AppText style={styles.label} variant="bodyMd">
-                {item.label}
-              </AppText>
+      {allocations.length ? (
+        <AppFlashList
+          data={allocations}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          keyExtractor={(item) => item.label}
+          renderItem={({ item }) => (
+            <View style={styles.allocation}>
+              <View style={styles.allocationHeader}>
+                <View style={styles.labelRow}>
+                  <View style={[styles.dot, { backgroundColor: item.color }]} />
+                  <AppText style={styles.label} variant="bodyMd">
+                    {item.label}
+                  </AppText>
+                </View>
+                <View style={styles.valueGroup}>
+                  <AppText style={styles.value} variant="labelMd">
+                    {item.percentage}%
+                  </AppText>
+                  <AppText color="mutedText" style={styles.amount} variant="bodyMd">
+                    {item.amountLabel}
+                  </AppText>
+                </View>
+              </View>
+              <ProgressBar color={item.color} progress={item.percentage} />
             </View>
-            <AppText style={styles.value} variant="labelMd">
-              {item.value}%
-            </AppText>
-          </View>
-          <ProgressBar color={item.color} progress={item.value} />
-        </View>
-      ))}
+          )}
+        />
+      ) : (
+        <AppText color="mutedText" variant="bodyMd">
+          Category allocation will appear once you have expense activity for this month.
+        </AppText>
+      )}
     </SurfaceCard>
   );
 }
@@ -51,6 +63,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  amount: {
+    fontSize: FontSizes.xs,
+    lineHeight: LineHeights.xs,
   },
   card: {
     gap: Spacing.xl,
@@ -71,6 +87,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
   },
+  separator: {
+    height: Spacing.xl,
+  },
   title: {
     fontFamily: font.headerSemiBold,
     fontSize: FontSizes.xl,
@@ -78,5 +97,9 @@ const styles = StyleSheet.create({
   value: {
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.xs,
+  },
+  valueGroup: {
+    alignItems: "flex-end",
+    gap: Sizes.xxs,
   },
 });

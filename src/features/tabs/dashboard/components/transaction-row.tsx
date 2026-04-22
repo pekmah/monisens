@@ -46,30 +46,23 @@ export function TransactionRow({
         },
       ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: bg }]}> 
+      <View style={[styles.iconWrap, { backgroundColor: bg }]}>
         <Feather color={accent} name={icon} size={Sizes["2xl"]} />
       </View>
       <View style={[styles.accentBar, { backgroundColor: accent }]} />
       <View style={styles.copy}>
-        <AppText numberOfLines={1} style={styles.title} variant="titleMd">
-          {title}
-        </AppText>
-        <View style={styles.detailsRow}>
-          <AppText
-            color="mutedText"
-            numberOfLines={1}
-            style={styles.meta}
-            variant="labelMd"
-          >
-            {meta}
-          </AppText>
-          <View style={styles.detailDivider} />
+        <View style={styles.details}>
+          <View style={{ flex: 1 }}>
+            <AppText numberOfLines={1} style={styles.title} variant="titleMd">
+              {title}asdfasdfasdfasdfasdfasdfasd
+            </AppText>
+          </View>
+
           <View
             style={{
               flex: 1,
               flexDirection: "row",
               justifyContent: "flex-end",
-              minWidth: Sizes.none,
             }}
           >
             <AppText
@@ -80,6 +73,16 @@ export function TransactionRow({
               {amount}
             </AppText>
           </View>
+        </View>
+
+        <View
+          style={{
+            flex: 1,
+          }}
+        >
+          <AppText color="mutedText" style={styles.meta} variant="labelMd">
+            {meta}
+          </AppText>
         </View>
       </View>
     </AppPressable>
@@ -109,10 +112,9 @@ const styles = StyleSheet.create({
     height: Sizes.xs,
     width: Sizes.xs,
   },
-  detailsRow: {
-    alignItems: "center",
+  details: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
     gap: Sizes.xs,
   },
   iconWrap: {
@@ -127,6 +129,7 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
     fontSize: FontSizes.sm,
     lineHeight: Sizes.lg,
+    textOverflow: "wrap",
   },
   row: {
     alignItems: "center",
@@ -142,5 +145,6 @@ const styles = StyleSheet.create({
     fontFamily: font.headerSemiBold,
     fontSize: FontSizes.md,
     lineHeight: Sizes["2xl"],
+    textOverflow: "ellipsis",
   },
 });

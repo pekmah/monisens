@@ -1,6 +1,6 @@
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import { AppText } from "@/components/base";
+import { AppFlashList, AppText } from "@/components/base";
 import { Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
@@ -20,7 +20,6 @@ export default function TransactionsScreen() {
       >
         <TransactionsToolbar
           onSearchTextChange={setSearchText}
-          pendingCount={snapshot?.sync.pendingOutboxCount ?? 0}
           searchText={searchText}
           totalCount={snapshot?.transactions.length ?? 0}
         />
@@ -34,9 +33,12 @@ export default function TransactionsScreen() {
             {error}
           </AppText>
         ) : snapshot?.transactionSections.length ? (
-          snapshot.transactionSections.map((section) => (
-            <TransactionSection key={section.title} section={section} />
-          ))
+          <AppFlashList
+            data={snapshot.transactionSections}
+            ItemSeparatorComponent={() => <View style={styles.sectionSeparator} />}
+            keyExtractor={(section) => section.title}
+            renderItem={({ item }) => <TransactionSection section={item} />}
+          />
         ) : (
           <AppText color="mutedText" variant="bodyMd">
             No transactions match this search.
@@ -51,5 +53,8 @@ const styles = StyleSheet.create({
   content: {
     gap: Sizes.xl,
     paddingBottom: Sizes["xl"],
+  },
+  sectionSeparator: {
+    height: Sizes.xl,
   },
 });
