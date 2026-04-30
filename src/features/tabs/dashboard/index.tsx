@@ -71,7 +71,11 @@ export default function DashboardScreen() {
                 >
                   REMAINING THIS MONTH
                 </AppText>
-                <AppText color="onPrimary" style={styles.heroSecondaryAmount} variant="titleMd">
+                <AppText
+                  color="onPrimary"
+                  style={styles.heroSecondaryAmount}
+                  variant="titleMd"
+                >
                   {formatMoney(spendable, "KES")}
                 </AppText>
               </View>
@@ -85,7 +89,7 @@ export default function DashboardScreen() {
         </SurfaceCard>
 
         <View style={styles.bentoGrid}>
-          <SurfaceCard elevated style={styles.transactionsCard}>
+          <SurfaceCard style={styles.transactionsCard}>
             <View style={styles.transactionsHeader}>
               <AppText
                 style={{ fontFamily: font.headerBold }}
@@ -105,7 +109,9 @@ export default function DashboardScreen() {
               {snapshot?.dashboardTransactions.length ? (
                 <AppFlashList
                   data={snapshot.dashboardTransactions}
-                  ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+                  ItemSeparatorComponent={() => (
+                    <View style={styles.listSeparator} />
+                  )}
                   keyExtractor={(transaction) => transaction.id}
                   renderItem={({ item }) => <TransactionRow {...item} />}
                 />
@@ -145,14 +151,18 @@ export default function DashboardScreen() {
                 {snapshot?.breakdown.length ? (
                   <AppFlashList
                     data={snapshot.breakdown}
-                    ItemSeparatorComponent={() => <View style={styles.legendSeparator} />}
-                    keyExtractor={(item) => item.label}
+                    ItemSeparatorComponent={() => (
+                      <View style={styles.legendSeparator} />
+                    )}
+                    keyExtractor={(item) => item.id}
                     numColumns={2}
                     renderItem={({ item, index }) => (
                       <View
                         style={[
                           styles.legendColumn,
-                          index % 2 === 0 ? styles.legendColumnLeft : styles.legendColumnRight,
+                          index % 2 === 0
+                            ? styles.legendColumnLeft
+                            : styles.legendColumnRight,
                         ]}
                       >
                         <View style={styles.legendItem}>
@@ -185,7 +195,8 @@ export default function DashboardScreen() {
                   />
                 ) : (
                   <AppText color="mutedText" variant="bodyMd">
-                    Expense categories will appear after local transactions are stored.
+                    Expense categories will appear after local transactions are
+                    stored.
                   </AppText>
                 )}
               </View>
@@ -210,6 +221,8 @@ const styles = StyleSheet.create({
   breakdownCard: {
     gap: Sizes["2xl"] + Sizes.xxs,
     padding: Spacing.xl,
+    borderWidth: Sizes.xxs - 1,
+    borderColor: "rgba(0,0,0,0.07)",
   },
   breakdownContent: {
     gap: Spacing.xl,
@@ -331,6 +344,8 @@ const styles = StyleSheet.create({
   },
   transactionsCard: {
     gap: Spacing.lg,
+    borderWidth: Sizes.xxs - 1,
+    borderColor: "rgba(0,0,0,0.07)",
   },
   transactionsHeader: {
     alignItems: "center",

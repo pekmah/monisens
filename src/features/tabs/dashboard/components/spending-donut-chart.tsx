@@ -8,6 +8,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 export type SpendingDonutChartItem = {
   amount: number;
   color: string;
+  id: string;
   label: string;
 };
 
@@ -59,7 +60,7 @@ export function SpendingDonutChart({
                 cx={DONUT_CENTER}
                 cy={DONUT_CENTER}
                 fill="transparent"
-                key={item.label}
+                key={item.id}
                 r={DONUT_RADIUS}
                 stroke={item.color}
                 strokeDasharray={`${visibleArc} ${DONUT_CIRCUMFERENCE - visibleArc}`}

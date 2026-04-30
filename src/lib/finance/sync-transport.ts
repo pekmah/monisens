@@ -3,6 +3,17 @@ import type { PullResult, PushChangePayload, PushResult } from "@/lib/finance/ty
 const DEFAULT_CONVEX_CLOUD_URL = "https://formal-meerkat-474.convex.cloud";
 const DEFAULT_HTTP_ACTIONS_URL = "https://formal-meerkat-474.convex.site";
 
+export function getConfiguredConvexCloudUrl() {
+  return process.env.EXPO_PUBLIC_CONVEX_CLOUD_URL
+    ?? process.env.EXPO_PUBLIC_CONVEX_URL
+    ?? DEFAULT_CONVEX_CLOUD_URL;
+}
+
+export function getConfiguredConvexSiteUrl() {
+  return process.env.EXPO_PUBLIC_CONVEX_SITE_URL
+    ?? DEFAULT_HTTP_ACTIONS_URL;
+}
+
 export type SyncTransport = {
   isConfigured: boolean;
   pullChanges: (args: { cursor: string | null; limit: number }) => Promise<PullResult>;
@@ -16,15 +27,15 @@ export class SyncTransportDisabledError extends Error {
 }
 
 export function createSyncTransport(): SyncTransport {
+  const siteUrl = getConfiguredConvexSiteUrl();
   const pushUrl =
     process.env.EXPO_PUBLIC_CONVEX_SYNC_PUSH_URL ??
-    `${DEFAULT_HTTP_ACTIONS_URL}/sync/push`;
+    `${siteUrl}/sync/push`;
   const pullUrl =
     process.env.EXPO_PUBLIC_CONVEX_SYNC_PULL_URL ??
-    `${DEFAULT_HTTP_ACTIONS_URL}/sync/pull`;
+    `${siteUrl}/sync/pull`;
   const authToken = process.env.EXPO_PUBLIC_CONVEX_SYNC_TOKEN;
-  const cloudUrl =
-    process.env.EXPO_PUBLIC_CONVEX_CLOUD_URL ?? DEFAULT_CONVEX_CLOUD_URL;
+  const cloudUrl = getConfiguredConvexCloudUrl();
 
   if (!pushUrl || !pullUrl || !cloudUrl) {
     return {
@@ -82,10 +93,11 @@ export function createSyncTransport(): SyncTransport {
 
 async function buildTransportError(response: Response, operation: "push" | "pull") {
   const body = await response.text();
+  const siteUrl = getConfiguredConvexSiteUrl();
 
   if (body.includes("does not have HTTP actions enabled")) {
     return new Error(
-      `Convex ${operation} is pointed at ${DEFAULT_HTTP_ACTIONS_URL}, but HTTP actions are not enabled on that deployment yet.`,
+      `Convex ${operation} is pointed at ${siteUrl}, but HTTP actions are not enabled on that deployment yet.`,
     );
   }
 

@@ -10,6 +10,7 @@ export type OutboxOperation = "upsert" | "delete";
 export type SyncEntityType =
   | "transaction"
   | "budget"
+  | "category"
   | "import"
   | "attachment";
 export type TransactionDirection = "expense" | "income";
@@ -29,10 +30,188 @@ export type SyncEngineStatus =
   | "disabled"
   | "error";
 
+export type SmsPermissionState =
+  | "unsupported"
+  | "granted"
+  | "denied"
+  | "unknown";
+
 export type CategoryRecord = {
   color: string;
   id: string;
+  isDefault: boolean;
   label: string;
+  usageCount: number;
+};
+
+export type SmsMessageRecord = {
+  body: string;
+  createdAt: number;
+  fingerprint: string;
+  id: string;
+  parseStatus: "matched" | "ignored" | "failed";
+  parserKey: string | null;
+  readAt: number | null;
+  receivedAt: number;
+  sender: string;
+  updatedAt: number;
+};
+
+export type SmsTransactionCandidateRecord = {
+  amountMinor: number;
+  aiJobId: string | null;
+  categoryId: string | null;
+  categoryLabel: string;
+  categoryProposalId: string | null;
+  classificationConfidence: number | null;
+  classificationReason: string | null;
+  classificationSource: "rule" | "merchant_memory" | "ai" | "user";
+  classificationStatus: "not_needed" | "queued" | "processing" | "classified" | "failed";
+  confidence: number;
+  createdAt: number;
+  currency: string;
+  direction: TransactionDirection;
+  id: string;
+  merchantKey: string | null;
+  merchant: string;
+  notes: string | null;
+  occurredAt: number;
+  parserKey: string | null;
+  reference: string | null;
+  smsBody: string;
+  smsMessageId: string;
+  smsReceivedAt: number;
+  smsSender: string;
+  suggestedCategoryLabel: string | null;
+  status: "pending" | "accepted" | "dismissed";
+  transactionId: string | null;
+  updatedAt: number;
+};
+
+export type ParsedSmsCandidate = {
+  amountMinor: number;
+  categoryId: string | null;
+  confidence: number;
+  currency: string;
+  direction: TransactionDirection;
+  merchant: string;
+  notes?: string;
+  occurredAt: number;
+  parserKey: string;
+  parseStatus: "matched" | "ignored" | "failed";
+  reference?: string;
+};
+
+export type SmsImportResult = {
+  importedCount: number;
+  matchedCount: number;
+};
+
+export type SmsReviewSnapshot = {
+  candidateCount: number;
+  failedCandidateCount: number;
+  isListenerEnabled: boolean;
+  processingCandidateCount: number;
+  queuedCandidateCount: number;
+  readyCandidateCount: number;
+  lastError: string | null;
+  lastImportedAt: number | null;
+  lastImportCount: number;
+  lastListenerEventAt: number | null;
+  permissionState: SmsPermissionState;
+  supported: boolean;
+};
+
+export type SmsCandidatePage = {
+  hasMore: boolean;
+  items: SmsTransactionCandidateRecord[];
+  nextOffset: number;
+  totalCount: number;
+};
+
+export type AiJobType = "parse_sms" | "classify_candidate" | "submit_feedback";
+export type AiJobScope = "sms_single" | "sms_batch" | "import_batch";
+export type AiJobStatus = "pending" | "running" | "completed" | "failed";
+export type AiJobItemStatus = "pending" | "running" | "completed" | "failed";
+export type AiClassificationStatus =
+  | "not_needed"
+  | "queued"
+  | "processing"
+  | "classified"
+  | "failed";
+
+export type AiJobRecord = {
+  attemptCount: number;
+  backendJobId: string | null;
+  completedAt: number | null;
+  createdAt: number;
+  id: string;
+  jobType: AiJobType;
+  lastError: string | null;
+  nextRetryAt: number | null;
+  payloadJson: string;
+  progress: number;
+  scope: AiJobScope;
+  status: AiJobStatus;
+  updatedAt: number;
+};
+
+export type AiJobItemRecord = {
+  id: string;
+  itemId: string;
+  itemType: "sms_message" | "sms_candidate";
+  jobId: string;
+  lastError: string | null;
+  resultJson: string | null;
+  status: AiJobItemStatus;
+  updatedAt: number;
+};
+
+export type CategoryProposalRecord = {
+  id: string;
+  linkedCandidateId: string | null;
+  normalizedName: string;
+  proposedName: string;
+  status: "pending" | "approved" | "rejected";
+  updatedAt: number;
+};
+
+export type AiClassificationResult = {
+  categoryId: string | null;
+  categoryProposalId: string | null;
+  confidence: number | null;
+  reason: string | null;
+  source: "merchant_memory" | "ai" | "none";
+  suggestedCategoryLabel: string | null;
+};
+
+export type AiBackendAvailability = {
+  isConfigured: boolean;
+  lastError: string | null;
+  status: "available" | "unconfigured" | "unreachable";
+  supportsStreaming: boolean;
+};
+
+export type AiStreamEvent = {
+  event:
+    | "job.accepted"
+    | "job.queued"
+    | "job.processing"
+    | "job.progress"
+    | "job.completed"
+    | "job.failed";
+  jobId: string;
+  payload: Record<string, unknown>;
+};
+
+export type AiSnapshot = {
+  activeBatchJob: AiJobRecord | null;
+  backend: AiBackendAvailability;
+  failedJobCount: number;
+  pendingCategoryProposals: CategoryProposalRecord[];
+  pendingJobCount: number;
+  recentJobs: AiJobRecord[];
+  runningJobCount: number;
 };
 
 export type BudgetRecord = {
@@ -166,6 +345,7 @@ export type DashboardTransactionRecord = {
 export type BreakdownRecord = {
   amount: number;
   color: string;
+  id: string;
   label: string;
   value: string;
 };
@@ -208,16 +388,22 @@ export type TrajectoryRecord = {
 
 export type SyncSnapshot = {
   errorMessage: string | null;
+  failedEntityCount: number;
   hasRemote: boolean;
   isOnline: boolean;
   lastAttemptedAt: number | null;
   lastSuccessfulSyncAt: number | null;
   openConflictCount: number;
   pendingOutboxCount: number;
+  syncedEntityCount: number;
+  syncingEntityCount: number;
   status: SyncEngineStatus;
+  trackedEntityCount: number;
+  unsyncedEntityCount: number;
 };
 
 export type FinanceSnapshot = {
+  ai: AiSnapshot;
   attachments: AttachmentRecord[];
   budgetAllocations: BudgetAllocationRecord[];
   budgetOverview: BudgetOverviewRecord | null;
@@ -229,6 +415,7 @@ export type FinanceSnapshot = {
   imports: ImportRecord[];
   insightAllocations: InsightAllocationRecord[];
   insightSubscriptions: InsightSubscriptionRecord[];
+  sms: SmsReviewSnapshot;
   spendingAlert: SpendingAlertRecord | null;
   sync: SyncSnapshot;
   trajectory: TrajectoryRecord | null;

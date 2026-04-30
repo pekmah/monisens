@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
-import { AppButton, AppFlashList, AppText, AppTextInput } from "@/components/base";
+import { AppButton, AppText, AppTextInput, OptionSelectField } from "@/components/base";
 import { Radii, Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
@@ -64,24 +64,17 @@ export default function BudgetingScreen() {
               value={notes}
             />
             {snapshot?.categories.length ? (
-              <AppFlashList
-                data={snapshot.categories}
-                horizontal
-                keyExtractor={(category) => category.id}
-                renderItem={({ item: category }) => {
-                  const active = category.id === categoryId;
-
-                  return (
-                    <AppButton
-                      onPress={() => setCategoryId(category.id)}
-                      title={category.label}
-                      variant={active ? "primary" : "secondary"}
-                    />
-                  );
-                }}
-                scrollEnabled
-                showsHorizontalScrollIndicator={false}
-                ItemSeparatorComponent={() => <View style={styles.categorySeparator} />}
+              <OptionSelectField
+                label="Category"
+                onSelect={setCategoryId}
+                options={snapshot.categories.map((category) => ({
+                  accentColor: category.color,
+                  label: category.label,
+                  value: category.id,
+                }))}
+                placeholder="Choose a category"
+                selectedValue={categoryId}
+                title="Choose budget category"
               />
             ) : (
               <AppText color="mutedText" variant="bodyMd">
@@ -116,9 +109,6 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     gap: Spacing.sm,
-  },
-  categorySeparator: {
-    width: Spacing.sm,
   },
   content: {
     gap: Spacing.lg,

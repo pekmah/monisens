@@ -6,10 +6,12 @@ import { TabScreen } from "@/features/tabs/_components";
 import {
   AppearanceCard,
   BackupCard,
+  CategoriesCard,
   DataControlsCard,
   SettingsFooter,
   SettingsGroupCard,
   SettingsIntroCard,
+  SmsSyncCard,
   type SettingsGroup,
 } from "@/features/tabs/settings/components";
 
@@ -28,7 +30,6 @@ const groups: SettingsGroup[] = [
     tone: "primary" as const,
     title: "Connectivity",
     rows: [
-      { meta: "Auto-parse bank messages", title: "Sync SMS", toggle: true },
       {
         meta: "Disable cloud processing",
         title: "Local-only Mode",
@@ -53,6 +54,8 @@ export default function SettingsScreen() {
           keyExtractor={(group) => group.title}
           renderItem={({ item }) => <SettingsGroupCard group={item} />}
         />
+        <CategoriesCard />
+        <SmsSyncCard />
         <DataControlsCard />
         <BackupCard />
         <SettingsFooter />

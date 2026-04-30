@@ -13,12 +13,14 @@ import {
   Manrope_700Bold,
   Manrope_800ExtraBold,
 } from "@expo-google-fonts/manrope";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useEffect, useMemo } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import "react-native-reanimated";
 
@@ -79,27 +81,43 @@ function RootNavigator() {
   }, [appTheme.colors.background]);
 
   return (
-    <KeyboardProvider>
-      <ThemeProvider value={navigationTheme}>
-        <ToastProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="transactions/new"
-              options={{ headerShown: false }}
-            />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <KeyboardProvider>
+        <ThemeProvider value={navigationTheme}>
+          <BottomSheetModalProvider>
+            <ToastProvider>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="transactions/new"
+                  options={{ headerShown: false }}
+                />
             <Stack.Screen
               name="transactions/[id]"
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="sms/review"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="sms/ai"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="settings/categories"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="modal"
               options={{ presentation: "modal", title: "Modal" }}
-            />
-          </Stack>
-          <StatusBar style={appTheme.dark ? "light" : "dark"} />
-        </ToastProvider>
-      </ThemeProvider>
-    </KeyboardProvider>
+                />
+              </Stack>
+              <StatusBar style={appTheme.dark ? "light" : "dark"} />
+            </ToastProvider>
+          </BottomSheetModalProvider>
+        </ThemeProvider>
+      </KeyboardProvider>
+    </GestureHandlerRootView>
   );
 }

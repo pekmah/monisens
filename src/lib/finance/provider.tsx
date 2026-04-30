@@ -19,6 +19,7 @@ import type {
   SmsImportResult,
   SmsPermissionState,
   SyncEngineStatus,
+  TransactionRecord,
 } from "@/lib/finance/types";
 import {
   acceptSmsCandidateReviewUseCase,
@@ -26,8 +27,8 @@ import {
   bootstrapFinanceStore,
   canUseRemoteSync,
   connectAiJobStreamUseCase,
-  createCategoryUseCase,
   createBudgetUseCase,
+  createCategoryUseCase,
   createTransactionUseCase,
   deleteCategoryUseCase,
   deleteTransactionUseCase,
@@ -37,8 +38,9 @@ import {
   getSmsPermissionStatusUseCase,
   handleIncomingSmsUseCase,
   importSmsInboxUseCase,
-  loadPendingSmsCandidatesPageUseCase,
   loadFinanceSnapshot,
+  loadPendingSmsCandidatesPageUseCase,
+  loadTransactionByIdUseCase,
   rejectCategoryProposalUseCase,
   requestSmsPermissionUseCase,
   retryAiJobUseCase,
@@ -47,6 +49,7 @@ import {
   setSmsSyncErrorUseCase,
   startSmsListenerUseCase,
   stopSmsListenerUseCase,
+  syncRemoteAiJobsUseCase,
   syncRemoteAiJobUseCase,
   updateCategoryUseCase,
   updateSmsCandidateCategoryUseCase,
@@ -74,6 +77,7 @@ const FinanceContext = createContext<{
     limit: number;
     offset: number;
   }) => Promise<SmsCandidatePage>;
+  loadTransactionById: (id: string) => Promise<TransactionRecord | null>;
   requestSmsPermission: () => Promise<SmsPermissionState>;
   ready: boolean;
   refresh: (searchText?: string) => Promise<void>;
@@ -85,9 +89,19 @@ const FinanceContext = createContext<{
   setSearchText: (value: string) => void;
   snapshot: FinanceSnapshot | null;
   syncNow: () => Promise<void>;
-  updateCategory: (input: { color: string; id: string; label: string }) => Promise<void>;
-  updateSmsCandidateCategory: (id: string, categoryId: string | null) => Promise<void>;
-  updateTransaction: (id: string, input: Partial<CreateTransactionInput>) => Promise<void>;
+  updateCategory: (input: {
+    color: string;
+    id: string;
+    label: string;
+  }) => Promise<void>;
+  updateSmsCandidateCategory: (
+    id: string,
+    categoryId: string | null,
+  ) => Promise<void>;
+  updateTransaction: (
+    id: string,
+    input: Partial<CreateTransactionInput>,
+  ) => Promise<void>;
 } | null>(null);
 
 export function FinanceProvider({ children }: PropsWithChildren) {
@@ -95,31 +109,45 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [snapshot, setSnapshot] = useState<FinanceSnapshot | null>(null);
-  const [smsPermissionState, setSmsPermissionState] = useState<SmsPermissionState>("unknown");
+  const [smsPermissionState, setSmsPermissionState] =
+    useState<SmsPermissionState>("unknown");
   const [syncStatus, setSyncStatus] = useState<SyncEngineStatus>("idle");
   const onlineRef = useRef(true);
   const readyRef = useRef(false);
+  const remoteAiSyncRef = useRef(false);
   const searchRef = useRef(searchText);
 
   useEffect(() => {
     searchRef.current = searchText;
   }, [searchText]);
 
-  const refresh = useCallback(async (nextSearchText?: string) => {
-    if (!readyRef.current) {
-      return;
-    }
+  const refresh = useCallback(
+    async (nextSearchText?: string) => {
+      if (!readyRef.current) {
+        return;
+      }
 
-    const permissionState = await getSmsPermissionStatusUseCase();
-    setSmsPermissionState(permissionState);
-    const nextSnapshot = loadFinanceSnapshot({
-      isOnline: onlineRef.current,
-      smsPermissionState: permissionState,
-      searchText: nextSearchText ?? searchRef.current,
-      status: syncStatus,
-    });
-    setSnapshot(nextSnapshot);
-  }, [syncStatus]);
+      if (onlineRef.current && !remoteAiSyncRef.current) {
+        remoteAiSyncRef.current = true;
+        try {
+          await syncRemoteAiJobsUseCase();
+        } finally {
+          remoteAiSyncRef.current = false;
+        }
+      }
+
+      const permissionState = await getSmsPermissionStatusUseCase();
+      setSmsPermissionState(permissionState);
+      const nextSnapshot = loadFinanceSnapshot({
+        isOnline: onlineRef.current,
+        smsPermissionState: permissionState,
+        searchText: nextSearchText ?? searchRef.current,
+        status: syncStatus,
+      });
+      setSnapshot(nextSnapshot);
+    },
+    [syncStatus],
+  );
 
   const syncNow = useCallback(async () => {
     if (!onlineRef.current || !canUseRemoteSync()) {
@@ -137,25 +165,33 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     await refresh();
   }, [refresh]);
 
-  const createLocalTransaction = useCallback(async (input: CreateTransactionInput) => {
-    const id = createTransactionUseCase(input);
-    await refresh();
+  const createLocalTransaction = useCallback(
+    async (input: CreateTransactionInput) => {
+      const id = createTransactionUseCase(input);
+      await refresh();
 
-    if (onlineRef.current && canUseRemoteSync()) {
-      setSyncStatus("syncing");
-      await refresh();
-      const result = await runFinanceSyncUseCase("write");
-      setSyncStatus(result.status);
-      await refresh();
-      setSyncStatus("idle");
-      await refresh();
-    }
+      if (onlineRef.current && canUseRemoteSync()) {
+        setSyncStatus("syncing");
+        await refresh();
+        const result = await runFinanceSyncUseCase("write");
+        setSyncStatus(result.status);
+        await refresh();
+        setSyncStatus("idle");
+        await refresh();
+      }
 
-    return id;
-  }, [refresh]);
+      return id;
+    },
+    [refresh],
+  );
 
   const createLocalBudget = useCallback(
-    async (input: { amount: string; categoryId: string; monthKey?: string; notes?: string }) => {
+    async (input: {
+      amount: string;
+      categoryId: string;
+      monthKey?: string;
+      notes?: string;
+    }) => {
       const id = createBudgetUseCase(input);
       await refresh();
 
@@ -174,22 +210,25 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     [refresh],
   );
 
-  const createLocalCategory = useCallback(async (input: { color: string; label: string }) => {
-    const id = createCategoryUseCase(input);
-    await refresh();
+  const createLocalCategory = useCallback(
+    async (input: { color: string; label: string }) => {
+      const id = createCategoryUseCase(input);
+      await refresh();
 
-    if (onlineRef.current && canUseRemoteSync()) {
-      setSyncStatus("syncing");
-      await refresh();
-      const result = await runFinanceSyncUseCase("write");
-      setSyncStatus(result.status);
-      await refresh();
-      setSyncStatus("idle");
-      await refresh();
-    }
+      if (onlineRef.current && canUseRemoteSync()) {
+        setSyncStatus("syncing");
+        await refresh();
+        const result = await runFinanceSyncUseCase("write");
+        setSyncStatus(result.status);
+        await refresh();
+        setSyncStatus("idle");
+        await refresh();
+      }
 
-    return id;
-  }, [refresh]);
+      return id;
+    },
+    [refresh],
+  );
 
   const updateLocalTransaction = useCallback(
     async (id: string, input: Partial<CreateTransactionInput>) => {
@@ -227,35 +266,41 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     [refresh],
   );
 
-  const updateLocalCategory = useCallback(async (input: { color: string; id: string; label: string }) => {
-    updateCategoryUseCase(input);
-    await refresh();
+  const updateLocalCategory = useCallback(
+    async (input: { color: string; id: string; label: string }) => {
+      updateCategoryUseCase(input);
+      await refresh();
 
-    if (onlineRef.current && canUseRemoteSync()) {
-      setSyncStatus("syncing");
-      await refresh();
-      const result = await runFinanceSyncUseCase("write");
-      setSyncStatus(result.status);
-      await refresh();
-      setSyncStatus("idle");
-      await refresh();
-    }
-  }, [refresh]);
+      if (onlineRef.current && canUseRemoteSync()) {
+        setSyncStatus("syncing");
+        await refresh();
+        const result = await runFinanceSyncUseCase("write");
+        setSyncStatus(result.status);
+        await refresh();
+        setSyncStatus("idle");
+        await refresh();
+      }
+    },
+    [refresh],
+  );
 
-  const deleteLocalCategory = useCallback(async (id: string) => {
-    deleteCategoryUseCase(id);
-    await refresh();
+  const deleteLocalCategory = useCallback(
+    async (id: string) => {
+      deleteCategoryUseCase(id);
+      await refresh();
 
-    if (onlineRef.current && canUseRemoteSync()) {
-      setSyncStatus("syncing");
-      await refresh();
-      const result = await runFinanceSyncUseCase("write");
-      setSyncStatus(result.status);
-      await refresh();
-      setSyncStatus("idle");
-      await refresh();
-    }
-  }, [refresh]);
+      if (onlineRef.current && canUseRemoteSync()) {
+        setSyncStatus("syncing");
+        await refresh();
+        const result = await runFinanceSyncUseCase("write");
+        setSyncStatus(result.status);
+        await refresh();
+        setSyncStatus("idle");
+        await refresh();
+      }
+    },
+    [refresh],
+  );
 
   const requestSmsPermission = useCallback(async () => {
     const result = await requestSmsPermissionUseCase();
@@ -266,14 +311,18 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   const importSmsInbox = useCallback(async () => {
     try {
-      const result = await importSmsInboxUseCase();
+      const result = await importSmsInboxUseCase(10);
       if (onlineRef.current) {
         await runAiJobQueueUseCase();
       }
       await refresh();
       return result;
     } catch (importError) {
-      setSmsSyncErrorUseCase(importError instanceof Error ? importError.message : "SMS import failed.");
+      setSmsSyncErrorUseCase(
+        importError instanceof Error
+          ? importError.message
+          : "SMS import failed.",
+      );
       await refresh();
       throw importError;
     }
@@ -285,62 +334,89 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     [],
   );
 
-  const setSmsListenerEnabled = useCallback(async (enabled: boolean) => {
-    try {
-      if (enabled) {
-        await startSmsListenerUseCase();
-      } else {
-        await stopSmsListenerUseCase();
+  const loadTransactionById = useCallback(
+    async (id: string) => loadTransactionByIdUseCase(id),
+    [],
+  );
+
+  const setSmsListenerEnabled = useCallback(
+    async (enabled: boolean) => {
+      try {
+        if (enabled) {
+          await startSmsListenerUseCase();
+        } else {
+          await stopSmsListenerUseCase();
+        }
+        setSmsSyncErrorUseCase(null);
+        await refresh();
+      } catch (listenerError) {
+        setSmsSyncErrorUseCase(
+          listenerError instanceof Error
+            ? listenerError.message
+            : "SMS listener failed.",
+        );
+        await refresh();
+        throw listenerError;
       }
-      setSmsSyncErrorUseCase(null);
+    },
+    [refresh],
+  );
+
+  const acceptSmsCandidate = useCallback(
+    async (id: string) => {
+      const transactionId = acceptSmsCandidateReviewUseCase(id);
       await refresh();
-    } catch (listenerError) {
-      setSmsSyncErrorUseCase(listenerError instanceof Error ? listenerError.message : "SMS listener failed.");
+
+      if (onlineRef.current) {
+        await runAiJobQueueUseCase();
+      }
+
+      if (onlineRef.current && canUseRemoteSync()) {
+        setSyncStatus("syncing");
+        await refresh();
+        const result = await runFinanceSyncUseCase("write");
+        setSyncStatus(result.status);
+        await refresh();
+        setSyncStatus("idle");
+        await refresh();
+      }
+
+      return transactionId;
+    },
+    [refresh],
+  );
+
+  const dismissSmsCandidate = useCallback(
+    async (id: string) => {
+      dismissSmsCandidateReviewUseCase(id);
       await refresh();
-      throw listenerError;
-    }
-  }, [refresh]);
+    },
+    [refresh],
+  );
 
-  const acceptSmsCandidate = useCallback(async (id: string) => {
-    const transactionId = acceptSmsCandidateReviewUseCase(id);
-    await refresh();
-
-    if (onlineRef.current) {
-      await runAiJobQueueUseCase();
-    }
-
-    if (onlineRef.current && canUseRemoteSync()) {
-      setSyncStatus("syncing");
+  const updateCandidateCategory = useCallback(
+    async (id: string, categoryId: string | null) => {
+      updateSmsCandidateCategoryUseCase(id, categoryId);
       await refresh();
-      const result = await runFinanceSyncUseCase("write");
-      setSyncStatus(result.status);
+    },
+    [refresh],
+  );
+
+  const approveCategoryProposal = useCallback(
+    async (id: string) => {
+      approveCategoryProposalUseCase(id);
       await refresh();
-      setSyncStatus("idle");
+    },
+    [refresh],
+  );
+
+  const rejectCategoryProposal = useCallback(
+    async (id: string) => {
+      rejectCategoryProposalUseCase(id);
       await refresh();
-    }
-
-    return transactionId;
-  }, [refresh]);
-
-  const dismissSmsCandidate = useCallback(async (id: string) => {
-    dismissSmsCandidateReviewUseCase(id);
-    await refresh();
-  }, [refresh]);
-
-  const updateCandidateCategory = useCallback(async (id: string, categoryId: string | null) => {
-    updateSmsCandidateCategoryUseCase(id, categoryId);
-    await refresh();
-  }, [refresh]);
-
-  const approveCategoryProposal = useCallback(async (id: string) => {
-    approveCategoryProposalUseCase(id);
-    await refresh();
-  }, [refresh]);
-
-  const rejectCategoryProposal = useCallback(async (id: string) => {
-    rejectCategoryProposalUseCase(id);
-    await refresh();
-  }, [refresh]);
+    },
+    [refresh],
+  );
 
   const runAiQueue = useCallback(async () => {
     await runAiJobQueueUseCase();
@@ -405,13 +481,18 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const listenerEnabled = snapshot?.sms.isListenerEnabled ?? getSmsListenerEnabledUseCase();
+    const listenerEnabled =
+      snapshot?.sms.isListenerEnabled ?? getSmsListenerEnabledUseCase();
     if (!listenerEnabled) {
       return;
     }
 
     void startSmsListenerUseCase().catch((listenerError) => {
-      setSmsSyncErrorUseCase(listenerError instanceof Error ? listenerError.message : "SMS listener failed.");
+      setSmsSyncErrorUseCase(
+        listenerError instanceof Error
+          ? listenerError.message
+          : "SMS listener failed.",
+      );
       void refresh();
     });
 
@@ -431,7 +512,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const isConnected = Boolean(
+        state.isConnected && state.isInternetReachable !== false,
+      );
       const wasOnline = onlineRef.current;
       onlineRef.current = isConnected;
       setSyncStatus(isConnected ? "idle" : "offline");
@@ -446,15 +529,18 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       }
     });
 
-    const appStateSubscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        void refresh();
-        if (onlineRef.current && canUseRemoteSync()) {
-          void runFinanceSyncUseCase("resume").then(() => refresh());
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (state) => {
+        if (state === "active") {
+          void refresh();
+          if (onlineRef.current && canUseRemoteSync()) {
+            void runFinanceSyncUseCase("resume").then(() => refresh());
+          }
+          void runAiJobQueueUseCase().then(() => refresh());
         }
-        void runAiJobQueueUseCase().then(() => refresh());
-      }
-    });
+      },
+    );
 
     return () => {
       readyRef.current = false;
@@ -469,12 +555,19 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const disconnect = connectAiJobStreamUseCase(activeBatchJob.backendJobId, () => {
-      void syncRemoteAiJobUseCase(activeBatchJob.backendJobId!).then(() => refresh());
-    });
+    const disconnect = connectAiJobStreamUseCase(
+      activeBatchJob.backendJobId,
+      () => {
+        void syncRemoteAiJobUseCase(activeBatchJob.backendJobId!).then(() =>
+          refresh(),
+        );
+      },
+    );
 
     const interval = setInterval(() => {
-      void syncRemoteAiJobUseCase(activeBatchJob.backendJobId!).then(() => refresh());
+      void syncRemoteAiJobUseCase(activeBatchJob.backendJobId!).then(() =>
+        refresh(),
+      );
     }, 3_000);
 
     return () => {
@@ -489,8 +582,14 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    void syncRemoteAiJobUseCase(activeBatchJob.backendJobId).then(() => refresh());
-  }, [refresh, snapshot?.ai.activeBatchJob?.backendJobId, snapshot?.ai.activeBatchJob?.status]);
+    void syncRemoteAiJobUseCase(activeBatchJob.backendJobId).then(() =>
+      refresh(),
+    );
+  }, [
+    refresh,
+    snapshot?.ai.activeBatchJob?.backendJobId,
+    snapshot?.ai.activeBatchJob?.status,
+  ]);
 
   const value = useMemo(
     () => ({
@@ -504,6 +603,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       dismissSmsCandidate,
       error,
       importSmsInbox,
+      loadTransactionById,
       loadPendingSmsCandidatesPage,
       requestSmsPermission,
       ready,
@@ -531,6 +631,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       dismissSmsCandidate,
       error,
       importSmsInbox,
+      loadTransactionById,
       loadPendingSmsCandidatesPage,
       requestSmsPermission,
       ready,

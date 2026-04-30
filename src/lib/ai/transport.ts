@@ -1,5 +1,5 @@
-import type { AiStreamEvent } from "@/lib/finance/types";
 import { DEFAULT_USER_ID } from "@/lib/finance/constants";
+import type { AiStreamEvent } from "@/lib/finance/types";
 
 const DEFAULT_AI_BASE_URL = "https://ai.cruizp.com";
 
@@ -46,7 +46,13 @@ export type AiTransport = {
   queueBulkSmsIngest: (input: {
     clientBatchId: string;
     existingCategories: string[];
-    messages: string[];
+    messages: Array<
+      | string
+      | {
+          clientMessageId: string;
+          message: string;
+        }
+    >;
     userId: string;
   }) => Promise<RemoteBatchSnapshot>;
   submitFeedback: (input: {
@@ -72,6 +78,7 @@ export type RemoteBatchSnapshot = {
 
 export type RemoteBatchResultItem = {
   attemptCount: number;
+  clientMessageId?: string | null;
   classification: RemoteClassification | null;
   createdAt: string;
   errorCode: string | null;
@@ -140,18 +147,9 @@ export function createAiTransport(): AiTransport {
 
   return {
     connectJobStream(jobId, onEvent) {
-      const controller = new AbortController();
-
-      void consumeEventStream({
-        onEvent,
-        signal: controller.signal,
-        url: `${baseUrl}/v1/ai/bulk/jobs/${jobId}/stream?userId=${encodeURIComponent(DEFAULT_USER_ID)}`,
-        headers: {
-          "x-api-secret": apiSecret,
-        },
-      });
-
-      return () => controller.abort();
+      void jobId;
+      void onEvent;
+      return () => undefined;
     },
     async classifyTransaction(input) {
       const response = await fetch(`${baseUrl}/v1/ai/classify-transaction`, {
@@ -224,11 +222,28 @@ export function createAiTransport(): AiTransport {
       return (await response.json()) as RemoteParsedSms;
     },
     async queueBulkSmsIngest(input) {
-      const response = await fetch(`${baseUrl}/v1/ai/bulk/ingest-sms`, {
-        body: JSON.stringify(input),
+      const preferredPayload = {
+        ...input,
+        messages: input.messages,
+      };
+      let response = await fetch(`${baseUrl}/v1/ai/bulk/ingest-sms`, {
+        body: JSON.stringify(preferredPayload),
         headers,
         method: "POST",
       });
+
+      if (!response.ok && input.messages.some((entry) => typeof entry !== "string")) {
+        response = await fetch(`${baseUrl}/v1/ai/bulk/ingest-sms`, {
+          body: JSON.stringify({
+            ...input,
+            messages: input.messages.map((entry) =>
+              typeof entry === "string" ? entry : entry.message,
+            ),
+          }),
+          headers,
+          method: "POST",
+        });
+      }
 
       if (!response.ok) {
         throw await buildAiTransportError(response, "queue bulk SMS ingest");
@@ -247,87 +262,8 @@ export function createAiTransport(): AiTransport {
         throw await buildAiTransportError(response, "submit feedback");
       }
     },
-    supportsStreaming: true,
+    supportsStreaming: false,
   };
-}
-
-async function consumeEventStream(input: {
-  headers: Record<string, string>;
-  onEvent: (event: AiStreamEvent) => void;
-  signal: AbortSignal;
-  url: string;
-}) {
-  const response = await fetch(input.url, {
-    headers: input.headers,
-    method: "GET",
-    signal: input.signal,
-  });
-
-  if (!response.ok || !response.body) {
-    throw await buildAiTransportError(response, "connect AI event stream");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (!input.signal.aborted) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-
-    for (const frame of frames) {
-      const event = parseSseFrame(frame);
-      if (event) {
-        input.onEvent(event);
-      }
-    }
-  }
-}
-
-function parseSseFrame(frame: string): AiStreamEvent | null {
-  const lines = frame.split(/\r?\n/);
-  let eventName = "message";
-  const dataLines: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith("event:")) {
-      eventName = line.slice("event:".length).trim();
-    } else if (line.startsWith("data:")) {
-      dataLines.push(line.slice("data:".length).trim());
-    }
-  }
-
-  if (dataLines.length === 0) {
-    return null;
-  }
-
-  const payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
-  const jobId = typeof payload.batchId === "string" ? payload.batchId : "";
-
-  return {
-    event: normalizeStreamEvent(eventName),
-    jobId,
-    payload,
-  };
-}
-
-function normalizeStreamEvent(value: string): AiStreamEvent["event"] {
-  switch (value) {
-    case "job.processing":
-    case "job.progress":
-    case "job.completed":
-    case "job.failed":
-    case "job.queued":
-      return value;
-    default:
-      return "job.progress";
-  }
 }
 
 async function buildAiTransportError(response: Response, operation: string) {

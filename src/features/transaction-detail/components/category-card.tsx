@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { AppFlashList, AppPressable, AppText } from "@/components/base";
+import { AppPressable, AppText, OptionSelectField } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
@@ -41,50 +41,50 @@ export function CategoryCard({
           </AppText>
         </AppPressable>
       </View>
-      <AppFlashList
-        data={categories}
-        horizontal
-        keyExtractor={(category) => category.id}
-        renderItem={({ item: category }) => {
-          const isActive = category.id === activeCategoryId;
-
-          return (
-            <AppPressable
-              disabled={!editing}
-              onPress={() => onSelectCategory(category.id)}
+      {categories.length ? (
+        editing ? (
+          <OptionSelectField
+            label="Category"
+            onSelect={onSelectCategory}
+            options={categories.map((category) => ({
+              accentColor: category.color,
+              label: category.label,
+              value: category.id,
+            }))}
+            placeholder="Choose a category"
+            selectedValue={activeCategoryId}
+            title="Update category"
+          />
+        ) : (
+          <View
+            style={[
+              styles.currentValue,
+              {
+                backgroundColor: theme.colors.surfaceContainerLow,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+          >
+            <View
               style={[
-                styles.pill,
+                styles.dot,
                 {
-                  backgroundColor: isActive
-                    ? `${category.color}22`
-                    : theme.colors.surfaceContainerLow,
-                  borderColor: isActive ? category.color : theme.colors.outlineVariant,
-                  opacity: !editing && !isActive ? 0.85 : 1,
+                  backgroundColor:
+                    categories.find((category) => category.id === activeCategoryId)?.color
+                    ?? theme.colors.outlineVariant,
                 },
               ]}
-            >
-              <View style={[styles.dot, { backgroundColor: category.color }]} />
-              <AppText
-                style={[
-                  styles.pillText,
-                  { color: isActive ? category.color : theme.colors.text },
-                ]}
-                variant="labelMd"
-              >
-                {category.label}
-              </AppText>
-            </AppPressable>
-          );
-        }}
-        ListEmptyComponent={
-          <AppText color="mutedText" variant="bodyMd">
-            No categories are stored in the database yet.
-          </AppText>
-        }
-        scrollEnabled
-        showsHorizontalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={styles.pillSeparator} />}
-      />
+            />
+            <AppText style={styles.currentValueText} variant="bodyMd">
+              {categories.find((category) => category.id === activeCategoryId)?.label ?? "No category selected"}
+            </AppText>
+          </View>
+        )
+      ) : (
+        <AppText color="mutedText" variant="bodyMd">
+          No categories are stored in the database yet.
+        </AppText>
+      )}
     </SurfaceCard>
   );
 }
@@ -107,22 +107,18 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     lineHeight: LineHeights.sm,
   },
-  pill: {
+  currentValue: {
     alignItems: "center",
-    borderRadius: Radii.full,
+    borderRadius: Radii.lg,
     borderWidth: Sizes.hairline,
     flexDirection: "row",
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Sizes.sm + Sizes.xs / 4,
+    minHeight: Sizes["11xl"],
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
-  pillSeparator: {
-    width: Spacing.sm,
-  },
-  pillText: {
-    fontFamily: font.bold,
-    fontSize: FontSizes.sm,
-    lineHeight: LineHeights.sm,
+  currentValueText: {
+    fontFamily: font.medium,
   },
   subtitle: {
     fontSize: FontSizes.sm,

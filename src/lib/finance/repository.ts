@@ -1,4 +1,7 @@
-import { DEFAULT_SYNC_SCOPE, DEFAULT_USER_ID } from "@/lib/finance/constants";
+import { DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE } from "@/lib/ai/constants";
+import { getAiSnapshot } from "@/lib/ai/repository";
+import { normalizeMerchantKey } from "@/lib/ai/utils";
+import { DEFAULT_FINANCE_CATEGORIES, DEFAULT_SYNC_SCOPE, DEFAULT_USER_ID } from "@/lib/finance/constants";
 import { sqliteDatabase } from "@/lib/finance/database";
 import type {
   AttachmentRecord,
@@ -16,8 +19,15 @@ import type {
   MonthlyTotalsRecord,
   OutboxOperation,
   OutboxStatus,
+  ParsedSmsCandidate,
   SpendingAlertRecord,
   SyncEntityType,
+  SmsImportResult,
+  SmsMessageRecord,
+  SmsPermissionState,
+  SmsReviewSnapshot,
+  SmsTransactionCandidateRecord,
+  SmsCandidatePage,
   SyncSnapshot,
   SyncStatus,
   TransactionRecord,
@@ -81,6 +91,134 @@ export function ensureSyncStateRow() {
       [DEFAULT_SYNC_SCOPE],
     );
   }
+}
+
+export function ensureSmsSyncStateRow() {
+  const existing = sqliteDatabase.getFirstSync<{ scope: string }>(
+    "SELECT scope FROM sms_sync_state WHERE scope = 'default'",
+  );
+
+  if (!existing) {
+    sqliteDatabase.runSync(
+      `INSERT INTO sms_sync_state (
+        scope,
+        listener_enabled,
+        last_imported_at,
+        last_import_count,
+        last_listener_event_at,
+        last_error
+      ) VALUES ('default', 0, NULL, NULL, NULL, NULL)`,
+    );
+  }
+}
+
+let smsCandidateColumnsEnsured = false;
+
+function ensureSmsCandidateAiColumns() {
+  if (smsCandidateColumnsEnsured) {
+    return;
+  }
+
+  const columns = sqliteDatabase.getAllSync<{ name: string }>(
+    "PRAGMA table_info(sms_transaction_candidates)",
+  );
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has("classification_status")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN classification_status TEXT NOT NULL DEFAULT 'not_needed'",
+    );
+  }
+
+  if (!columnNames.has("classification_source")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN classification_source TEXT NOT NULL DEFAULT 'rule'",
+    );
+  }
+
+  if (!columnNames.has("classification_confidence")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN classification_confidence INTEGER",
+    );
+  }
+
+  if (!columnNames.has("classification_reason")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN classification_reason TEXT",
+    );
+  }
+
+  if (!columnNames.has("merchant_key")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN merchant_key TEXT",
+    );
+  }
+
+  if (!columnNames.has("ai_job_id")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN ai_job_id TEXT",
+    );
+  }
+
+  if (!columnNames.has("category_proposal_id")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN category_proposal_id TEXT",
+    );
+  }
+
+  if (!columnNames.has("suggested_category_label")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_transaction_candidates ADD COLUMN suggested_category_label TEXT",
+    );
+  }
+
+  sqliteDatabase.execSync(`
+    CREATE INDEX IF NOT EXISTS sms_candidates_ai_status_idx
+      ON sms_transaction_candidates(classification_status, occurred_at DESC);
+  `);
+
+  smsCandidateColumnsEnsured = true;
+}
+
+export function ensureDefaultCategories() {
+  const existingCount =
+    sqliteDatabase.getFirstSync<{ count: number }>(
+      `SELECT COUNT(*) AS count
+       FROM categories
+       WHERE user_id = ?
+         AND deleted_at IS NULL`,
+      [DEFAULT_USER_ID],
+    )?.count ?? 0;
+
+  if (existingCount > 0) {
+    return;
+  }
+
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    for (const category of DEFAULT_FINANCE_CATEGORIES) {
+      sqliteDatabase.runSync(
+        `INSERT INTO categories (
+          id, user_id, label, color, created_at, updated_at, deleted_at, version, server_updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, 1, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          user_id = excluded.user_id,
+          label = excluded.label,
+          color = excluded.color,
+          deleted_at = NULL,
+          updated_at = excluded.updated_at`,
+        [
+          category.id,
+          DEFAULT_USER_ID,
+          category.label,
+          category.color,
+          now,
+          now,
+        ],
+      );
+    }
+  });
 }
 
 export function writeSyncMetadata(input: MetadataWrite) {
@@ -220,9 +358,103 @@ export function rebuildSummaryTables() {
 
 export function listCategories(): CategoryRecord[] {
   const rows = sqliteDatabase.getAllSync<CategoryRecord>(
-    "SELECT id, label, color FROM categories ORDER BY label ASC",
+    `SELECT
+      c.id,
+      c.label,
+      c.color,
+      CASE
+        WHEN c.id IN ('cat-food', 'cat-transport', 'cat-shopping', 'cat-income', 'cat-bills', 'cat-entertainment', 'cat-health', 'cat-personal', 'cat-savings', 'cat-other')
+          THEN 1
+        ELSE 0
+      END AS isDefault,
+      (
+        SELECT COUNT(*)
+        FROM transactions t
+        WHERE t.category_id = c.id
+          AND t.deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*)
+        FROM budgets b
+        WHERE b.category_id = c.id
+          AND b.deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*)
+        FROM sms_transaction_candidates sc
+        WHERE sc.category_id = c.id
+          AND sc.status = 'pending'
+      ) AS usageCount
+     FROM categories c
+     WHERE user_id = ?
+       AND deleted_at IS NULL
+     ORDER BY label ASC`,
+    [DEFAULT_USER_ID],
   );
-  return rows;
+  return rows.map((row) => ({
+    ...row,
+    isDefault: Boolean((row as CategoryRecord & { isDefault: number | boolean }).isDefault),
+  }));
+}
+
+export function listPendingSmsCandidatesPage(input: {
+  limit: number;
+  offset: number;
+}): SmsCandidatePage {
+  ensureSmsCandidateAiColumns();
+  const totalCount =
+    sqliteDatabase.getFirstSync<{ count: number }>(
+      `SELECT COUNT(*) AS count
+       FROM sms_transaction_candidates
+       WHERE status = 'pending'`,
+    )?.count ?? 0;
+
+  const items = sqliteDatabase.getAllSync<SmsTransactionCandidateRecord>(
+    `SELECT
+      c.id AS id,
+      c.amount_minor AS amountMinor,
+      c.ai_job_id AS aiJobId,
+      c.category_id AS categoryId,
+      COALESCE(cat.label, 'Other') AS categoryLabel,
+      c.category_proposal_id AS categoryProposalId,
+      c.classification_confidence AS classificationConfidence,
+      c.classification_reason AS classificationReason,
+      c.classification_source AS classificationSource,
+      c.classification_status AS classificationStatus,
+      c.confidence AS confidence,
+      c.created_at AS createdAt,
+      c.currency AS currency,
+      c.direction AS direction,
+      c.merchant_key AS merchantKey,
+      c.merchant AS merchant,
+      c.notes AS notes,
+      c.occurred_at AS occurredAt,
+      c.parser_key AS parserKey,
+      c.reference AS reference,
+      m.body AS smsBody,
+      c.sms_message_id AS smsMessageId,
+      m.received_at AS smsReceivedAt,
+      m.sender AS smsSender,
+      c.suggested_category_label AS suggestedCategoryLabel,
+      c.status AS status,
+      c.transaction_id AS transactionId,
+      c.updated_at AS updatedAt
+     FROM sms_transaction_candidates c
+     INNER JOIN sms_messages m
+       ON m.id = c.sms_message_id
+     LEFT JOIN categories cat
+       ON cat.id = c.category_id
+     WHERE c.status = 'pending'
+     ORDER BY c.occurred_at DESC, c.created_at DESC
+     LIMIT ?
+     OFFSET ?`,
+    [Math.max(input.limit, 1), Math.max(input.offset, 0)],
+  );
+
+  return {
+    hasMore: input.offset + items.length < totalCount,
+    items,
+    nextOffset: input.offset + items.length,
+    totalCount,
+  };
 }
 
 export function listTransactions(searchText?: string): TransactionRecord[] {
@@ -340,6 +572,7 @@ export function getBreakdown(): BreakdownRecord[] {
   return rows.map((row) => ({
     amount: row.amountMinor / 100,
     color: row.categoryColor,
+    id: row.categoryId ?? "uncategorized",
     label: row.categoryLabel,
     value: formatMoney(row.amountMinor, "KES"),
   }));
@@ -724,6 +957,241 @@ export function createBudget(input: {
   return id;
 }
 
+export function createCategory(input: {
+  color: string;
+  id?: string;
+  label: string;
+}) {
+  const normalizedLabel = normalizeCategoryLabel(input.label);
+  ensureUniqueCategoryLabel(normalizedLabel);
+  const id = input.id ?? createId("cat");
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `INSERT INTO categories (
+        id, user_id, label, color, created_at, updated_at, deleted_at, version, server_updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL, 1, NULL)`,
+      [id, DEFAULT_USER_ID, normalizedLabel, input.color, now, now],
+    );
+
+    writeSyncMetadata({
+      entityId: id,
+      entityType: "category",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+
+    queueOutboxChange({
+      baseVersion: 0,
+      entityId: id,
+      entityType: "category",
+      operation: "upsert",
+      payload: serializeCategoryForSync(id),
+    });
+  });
+
+  return id;
+}
+
+export function updateCategory(input: {
+  color: string;
+  id: string;
+  label: string;
+}) {
+  const current = sqliteDatabase.getFirstSync<{
+    color: string;
+    id: string;
+    label: string;
+    version: number;
+  }>(
+    `SELECT id, label, color, version
+     FROM categories
+     WHERE id = ?
+       AND deleted_at IS NULL
+     LIMIT 1`,
+    [input.id],
+  );
+
+  if (!current) {
+    throw new Error("Category not found.");
+  }
+
+  const normalizedLabel = normalizeCategoryLabel(input.label);
+  ensureUniqueCategoryLabel(normalizedLabel, input.id);
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE categories
+       SET label = ?,
+           color = ?,
+           updated_at = ?,
+           version = version + 1
+       WHERE id = ?`,
+      [normalizedLabel, input.color, now, input.id],
+    );
+
+    writeSyncMetadata({
+      entityId: input.id,
+      entityType: "category",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+
+    queueOutboxChange({
+      baseVersion: current.version,
+      entityId: input.id,
+      entityType: "category",
+      operation: "upsert",
+      payload: serializeCategoryForSync(input.id),
+    });
+  });
+}
+
+export function deleteCategory(id: string) {
+  const category = sqliteDatabase.getFirstSync<{
+    id: string;
+    label: string;
+    version: number;
+  }>(
+    `SELECT id, label, version
+     FROM categories
+     WHERE id = ?
+       AND deleted_at IS NULL
+     LIMIT 1`,
+    [id],
+  );
+
+  if (!category) {
+    throw new Error("Category not found.");
+  }
+
+  if (DEFAULT_FINANCE_CATEGORIES.some((entry) => entry.id === id)) {
+    throw new Error("Default categories can be edited, but not deleted.");
+  }
+
+  const usage = sqliteDatabase.getFirstSync<{ count: number }>(
+    `SELECT
+      (
+        SELECT COUNT(*)
+        FROM transactions
+        WHERE category_id = ?
+          AND deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*)
+        FROM budgets
+        WHERE category_id = ?
+          AND deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*)
+        FROM sms_transaction_candidates
+        WHERE category_id = ?
+          AND status = 'pending'
+      ) AS count`,
+    [id, id, id],
+  )?.count ?? 0;
+
+  if (usage > 0) {
+    throw new Error("This category is still in use. Reassign related records before deleting it.");
+  }
+
+  const now = Date.now();
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE categories
+       SET deleted_at = ?,
+           updated_at = ?,
+           version = version + 1
+       WHERE id = ?`,
+      [now, now, id],
+    );
+
+    writeSyncMetadata({
+      entityId: id,
+      entityType: "category",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+
+    queueOutboxChange({
+      baseVersion: category.version,
+      entityId: id,
+      entityType: "category",
+      operation: "delete",
+      payload: {
+        deletedAt: now,
+        id,
+        label: category.label,
+        userId: DEFAULT_USER_ID,
+      },
+    });
+  });
+}
+
+export function approvePendingCategoryProposal(id: string) {
+  const proposal = sqliteDatabase.getFirstSync<{
+    linkedCandidateId: string | null;
+    normalizedName: string;
+    proposedName: string;
+  }>(
+    `SELECT
+      linked_candidate_id AS linkedCandidateId,
+      normalized_name AS normalizedName,
+      proposed_name AS proposedName
+     FROM category_proposals
+     WHERE id = ?
+       AND status = 'pending'
+     LIMIT 1`,
+    [id],
+  );
+
+  if (!proposal) {
+    throw new Error("Category proposal not found.");
+  }
+
+  const existingCategory = sqliteDatabase.getFirstSync<{ id: string }>(
+    `SELECT id
+     FROM categories
+     WHERE user_id = ?
+       AND deleted_at IS NULL
+       AND LOWER(TRIM(label)) = ?
+     LIMIT 1`,
+    [DEFAULT_USER_ID, proposal.normalizedName],
+  );
+
+  const categoryId = existingCategory?.id ?? createCategory({
+    color: "#6366f1",
+    label: proposal.proposedName,
+  });
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE category_proposals
+       SET status = 'approved',
+           updated_at = ?
+       WHERE id = ?`,
+      [now, id],
+    );
+
+    if (proposal.linkedCandidateId) {
+      sqliteDatabase.runSync(
+        `UPDATE sms_transaction_candidates
+         SET category_id = ?,
+             category_proposal_id = NULL,
+             classification_source = 'user',
+             classification_status = 'classified',
+             updated_at = ?
+         WHERE id = ?`,
+        [categoryId, now, proposal.linkedCandidateId],
+      );
+    }
+  });
+
+  return categoryId;
+}
+
 export function serializeBudgetForSync(id: string) {
   const budget = sqliteDatabase.getFirstSync<Record<string, unknown>>(
     `SELECT
@@ -750,6 +1218,30 @@ export function serializeBudgetForSync(id: string) {
   return budget;
 }
 
+export function serializeCategoryForSync(id: string) {
+  const category = sqliteDatabase.getFirstSync<Record<string, unknown>>(
+    `SELECT
+      id,
+      user_id AS userId,
+      label,
+      color,
+      created_at AS createdAt,
+      updated_at AS updatedAt,
+      deleted_at AS deletedAt,
+      version,
+      server_updated_at AS serverUpdatedAt
+     FROM categories
+     WHERE id = ?`,
+    [id],
+  );
+
+  if (!category) {
+    throw new Error("Category not found for sync serialization.");
+  }
+
+  return category;
+}
+
 export function getSyncSnapshot(args: {
   hasRemote: boolean;
   isOnline: boolean;
@@ -769,6 +1261,29 @@ export function getSyncSnapshot(args: {
        WHERE status = 'open'`,
     )?.count ?? 0;
 
+  const metadataCounts =
+    sqliteDatabase.getFirstSync<{
+      failedEntityCount: number;
+      syncedEntityCount: number;
+      syncingEntityCount: number;
+      trackedEntityCount: number;
+      unsyncedEntityCount: number;
+    }>(
+      `SELECT
+        COUNT(*) AS trackedEntityCount,
+        COALESCE(SUM(CASE WHEN sync_status = 'synced' THEN 1 ELSE 0 END), 0) AS syncedEntityCount,
+        COALESCE(SUM(CASE WHEN sync_status = 'syncing' THEN 1 ELSE 0 END), 0) AS syncingEntityCount,
+        COALESCE(SUM(CASE WHEN sync_status IN ('pending', 'failed', 'conflict') THEN 1 ELSE 0 END), 0) AS unsyncedEntityCount,
+        COALESCE(SUM(CASE WHEN sync_status = 'failed' THEN 1 ELSE 0 END), 0) AS failedEntityCount
+       FROM sync_metadata`,
+    ) ?? {
+      failedEntityCount: 0,
+      syncedEntityCount: 0,
+      syncingEntityCount: 0,
+      trackedEntityCount: 0,
+      unsyncedEntityCount: 0,
+    };
+
   const state = sqliteDatabase.getFirstSync<{
     lastAttemptedSyncAt: number | null;
     lastError: string | null;
@@ -785,25 +1300,95 @@ export function getSyncSnapshot(args: {
 
   return {
     errorMessage: state?.lastError ?? null,
+    failedEntityCount: metadataCounts.failedEntityCount,
     hasRemote: args.hasRemote,
     isOnline: args.isOnline,
     lastAttemptedAt: state?.lastAttemptedSyncAt ?? null,
     lastSuccessfulSyncAt: state?.lastSuccessfulSyncAt ?? null,
     openConflictCount: conflicts,
     pendingOutboxCount: outboxPending,
+    syncedEntityCount: metadataCounts.syncedEntityCount,
+    syncingEntityCount: metadataCounts.syncingEntityCount,
     status: args.status,
+    trackedEntityCount: metadataCounts.trackedEntityCount,
+    unsyncedEntityCount: metadataCounts.unsyncedEntityCount,
+  };
+}
+
+export function getSmsReviewSnapshot(permissionState: SmsPermissionState): SmsReviewSnapshot {
+  ensureSmsSyncStateRow();
+  const state = sqliteDatabase.getFirstSync<{
+    isListenerEnabled: number;
+    lastError: string | null;
+    lastImportedAt: number | null;
+    lastImportCount: number | null;
+    lastListenerEventAt: number | null;
+  }>(
+    `SELECT
+      listener_enabled AS isListenerEnabled,
+      last_error AS lastError,
+      last_imported_at AS lastImportedAt,
+      last_import_count AS lastImportCount,
+      last_listener_event_at AS lastListenerEventAt
+     FROM sms_sync_state
+     WHERE scope = 'default'`,
+  );
+  ensureSmsCandidateAiColumns();
+  const counts = sqliteDatabase.getFirstSync<{
+    candidateCount: number;
+    failedCandidateCount: number;
+    processingCandidateCount: number;
+    queuedCandidateCount: number;
+    readyCandidateCount: number;
+  }>(
+    `SELECT
+      COUNT(*) AS candidateCount,
+      COALESCE(SUM(CASE WHEN classification_status = 'failed' THEN 1 ELSE 0 END), 0) AS failedCandidateCount,
+      COALESCE(SUM(CASE WHEN classification_status = 'processing' THEN 1 ELSE 0 END), 0) AS processingCandidateCount,
+      COALESCE(SUM(CASE WHEN classification_status = 'queued' THEN 1 ELSE 0 END), 0) AS queuedCandidateCount,
+      COALESCE(SUM(CASE WHEN classification_status IN ('classified', 'not_needed') THEN 1 ELSE 0 END), 0) AS readyCandidateCount
+     FROM sms_transaction_candidates
+     WHERE status = 'pending'`,
+  ) ?? {
+    candidateCount: 0,
+    failedCandidateCount: 0,
+    processingCandidateCount: 0,
+    queuedCandidateCount: 0,
+    readyCandidateCount: 0,
+  };
+
+  return {
+    candidateCount: counts.candidateCount,
+    failedCandidateCount: counts.failedCandidateCount,
+    isListenerEnabled: Boolean(state?.isListenerEnabled),
+    processingCandidateCount: counts.processingCandidateCount,
+    queuedCandidateCount: counts.queuedCandidateCount,
+    readyCandidateCount: counts.readyCandidateCount,
+    lastError: state?.lastError ?? null,
+    lastImportedAt: state?.lastImportedAt ?? null,
+    lastImportCount: state?.lastImportCount ?? 0,
+    lastListenerEventAt: state?.lastListenerEventAt ?? null,
+    permissionState,
+    supported: true,
   };
 }
 
 export function getFinanceSnapshot(args: {
+  aiConfigured: boolean;
+  aiSupportsStreaming: boolean;
   hasRemote: boolean;
   isOnline: boolean;
+  smsPermissionState: SmsPermissionState;
   searchText?: string;
   status: SyncSnapshot["status"];
 }): FinanceSnapshot {
   const transactions = listTransactions(args.searchText);
 
   return {
+    ai: getAiSnapshot({
+      isConfigured: args.aiConfigured,
+      supportsStreaming: args.aiSupportsStreaming,
+    }),
     attachments: listAttachments(),
     budgetAllocations: getBudgetAllocations(),
     budgetOverview: getBudgetOverview(),
@@ -815,6 +1400,7 @@ export function getFinanceSnapshot(args: {
     imports: listImports(),
     insightAllocations: getInsightAllocations(),
     insightSubscriptions: getInsightSubscriptions(),
+    sms: getSmsReviewSnapshot(args.smsPermissionState),
     spendingAlert: getSpendingAlert(),
     sync: getSyncSnapshot(args),
     trajectory: getTrajectory(),
@@ -876,6 +1462,475 @@ export function createTransaction(input: CreateTransactionInput) {
   });
 
   return id;
+}
+
+export function upsertSmsMessage(input: {
+  body: string;
+  fingerprint: string;
+  id: string;
+  metadata?: Record<string, unknown>;
+  parseStatus: "matched" | "ignored" | "failed";
+  parserKey?: string | null;
+  readAt?: number | null;
+  receivedAt: number;
+  sender: string;
+}) {
+  const now = Date.now();
+  sqliteDatabase.runSync(
+    `INSERT INTO sms_messages (
+      id, sender, body, received_at, read_at, fingerprint, parser_key, parse_status, metadata_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      sender = excluded.sender,
+      body = excluded.body,
+      received_at = excluded.received_at,
+      read_at = excluded.read_at,
+      fingerprint = excluded.fingerprint,
+      parser_key = excluded.parser_key,
+      parse_status = excluded.parse_status,
+      metadata_json = excluded.metadata_json,
+      updated_at = excluded.updated_at`,
+    [
+      input.id,
+      input.sender,
+      input.body,
+      input.receivedAt,
+      input.readAt ?? null,
+      input.fingerprint,
+      input.parserKey ?? null,
+      input.parseStatus,
+      input.metadata ? JSON.stringify(input.metadata) : null,
+      now,
+      now,
+    ],
+  );
+}
+
+export function upsertSmsCandidate(input: {
+  amountMinor: number;
+  categoryId: string | null;
+  confidence: number;
+  currency: string;
+  direction: "expense" | "income";
+  merchantKey?: string | null;
+  merchant: string;
+  notes?: string;
+  occurredAt: number;
+  parserKey: string;
+  reference?: string;
+  smsMessageId: string;
+}) {
+  ensureSmsCandidateAiColumns();
+  const existing = sqliteDatabase.getFirstSync<{ id: string; status: string }>(
+    `SELECT id, status
+     FROM sms_transaction_candidates
+     WHERE sms_message_id = ?
+     LIMIT 1`,
+    [input.smsMessageId],
+  );
+  const now = Date.now();
+  const id = existing?.id ?? createId("sms-candidate");
+
+  sqliteDatabase.runSync(
+    `INSERT INTO sms_transaction_candidates (
+      id, sms_message_id, amount_minor, currency, direction, merchant, reference,
+      occurred_at, category_id, confidence, notes, status, transaction_id, parser_key,
+      classification_status, classification_source, classification_confidence, classification_reason,
+      merchant_key, ai_job_id, category_proposal_id, suggested_category_label, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      amount_minor = excluded.amount_minor,
+      currency = excluded.currency,
+      direction = excluded.direction,
+      merchant = excluded.merchant,
+      reference = excluded.reference,
+      occurred_at = excluded.occurred_at,
+      category_id = excluded.category_id,
+      confidence = excluded.confidence,
+      notes = excluded.notes,
+      parser_key = excluded.parser_key,
+      classification_status = excluded.classification_status,
+      classification_source = excluded.classification_source,
+      classification_confidence = excluded.classification_confidence,
+      classification_reason = excluded.classification_reason,
+      merchant_key = excluded.merchant_key,
+      updated_at = excluded.updated_at`,
+    [
+      id,
+      input.smsMessageId,
+      input.amountMinor,
+      input.currency,
+      input.direction,
+      input.merchant,
+      input.reference ?? null,
+      input.occurredAt,
+      input.categoryId,
+      input.confidence,
+      input.notes ?? null,
+      existing?.status === "dismissed" ? "dismissed" : "pending",
+      null,
+      input.parserKey,
+      input.categoryId && input.confidence >= 85 ? "not_needed" : "not_needed",
+      "rule",
+      input.confidence,
+      null,
+      input.merchantKey ?? null,
+      null,
+      null,
+      null,
+      now,
+      now,
+    ],
+  );
+
+  return {
+    categoryId: input.categoryId,
+    confidence: input.confidence,
+    id,
+    status: existing?.status === "dismissed" ? "dismissed" : "pending",
+  };
+}
+
+export function listSmsMessagesForAiParse(messageIds?: string[]) {
+  const ids = messageIds?.filter(Boolean) ?? [];
+  if (ids.length === 0) {
+    return [] as Array<{
+      body: string;
+      id: string;
+      receivedAt: number;
+      sender: string;
+    }>;
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  return sqliteDatabase.getAllSync<{
+    body: string;
+    id: string;
+    receivedAt: number;
+    sender: string;
+  }>(
+    `SELECT
+      id,
+      sender,
+      body,
+      received_at AS receivedAt
+     FROM sms_messages
+     WHERE id IN (${placeholders})`,
+    ids,
+  );
+}
+
+export function listSmsCandidatesForClassification(candidateIds?: string[]) {
+  ensureSmsCandidateAiColumns();
+  const ids = candidateIds?.filter(Boolean) ?? [];
+  if (ids.length === 0) {
+    return [] as Array<{
+      amountMinor: number;
+      categoryId: string | null;
+      classificationStatus: "not_needed" | "queued" | "processing" | "classified" | "failed";
+      confidence: number;
+      currency: string;
+      direction: "expense" | "income";
+      id: string;
+      merchant: string;
+      merchantKey: string | null;
+      notes: string | null;
+      occurredAt: number;
+      reference: string | null;
+      suggestedCategoryLabel: string | null;
+    }>;
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  return sqliteDatabase.getAllSync<{
+    amountMinor: number;
+    categoryId: string | null;
+    classificationStatus: "not_needed" | "queued" | "processing" | "classified" | "failed";
+    confidence: number;
+    currency: string;
+    direction: "expense" | "income";
+    id: string;
+    merchant: string;
+    merchantKey: string | null;
+    notes: string | null;
+    occurredAt: number;
+    reference: string | null;
+    suggestedCategoryLabel: string | null;
+  }>(
+    `SELECT
+      id,
+      amount_minor AS amountMinor,
+      confidence,
+      currency,
+      direction,
+      merchant,
+      merchant_key AS merchantKey,
+      notes,
+      occurred_at AS occurredAt,
+      reference,
+      category_id AS categoryId,
+      classification_status AS classificationStatus,
+      suggested_category_label AS suggestedCategoryLabel
+     FROM sms_transaction_candidates
+     WHERE id IN (${placeholders})`,
+    ids,
+  );
+}
+
+export function listSmsCandidateIdsNeedingAi() {
+  ensureSmsCandidateAiColumns();
+  return sqliteDatabase.getAllSync<{ id: string }>(
+    `SELECT id
+     FROM sms_transaction_candidates
+     WHERE status = 'pending'
+       AND (
+         classification_status IN ('queued', 'failed')
+         OR (
+           classification_source != 'user'
+           AND (category_id IS NULL OR COALESCE(classification_confidence, confidence) < ?)
+         )
+       )`,
+    [DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE],
+  ).map((row) => row.id);
+}
+
+export function listSmsCandidateIdsForMessageIds(messageIds: string[]) {
+  ensureSmsCandidateAiColumns();
+  const ids = messageIds.filter(Boolean);
+  if (ids.length === 0) {
+    return [] as string[];
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  return sqliteDatabase.getAllSync<{ id: string }>(
+    `SELECT id
+     FROM sms_transaction_candidates
+     WHERE sms_message_id IN (${placeholders})`,
+    ids,
+  ).map((row) => row.id);
+}
+
+export function listSmsMessageIdsForCandidateIds(candidateIds: string[]) {
+  ensureSmsCandidateAiColumns();
+  const ids = candidateIds.filter(Boolean);
+  if (ids.length === 0) {
+    return [] as string[];
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  return sqliteDatabase.getAllSync<{ smsMessageId: string }>(
+    `SELECT sms_message_id AS smsMessageId
+     FROM sms_transaction_candidates
+     WHERE id IN (${placeholders})`,
+    ids,
+  ).map((row) => row.smsMessageId);
+}
+
+export function listSmsMessageIdsNeedingAiParse() {
+  return sqliteDatabase.getAllSync<{ id: string }>(
+    `SELECT m.id
+     FROM sms_messages m
+     LEFT JOIN sms_transaction_candidates c
+       ON c.sms_message_id = m.id
+     WHERE c.id IS NULL
+       AND m.parse_status IN ('ignored', 'failed')
+     ORDER BY m.received_at DESC`,
+  ).map((row) => row.id);
+}
+
+export function markSmsCandidateAiQueued(input: {
+  candidateIds: string[];
+  classificationStatus?: "queued" | "processing" | "failed" | "classified";
+  jobId: string;
+}) {
+  ensureSmsCandidateAiColumns();
+  if (input.candidateIds.length === 0) {
+    return;
+  }
+
+  const placeholders = input.candidateIds.map(() => "?").join(", ");
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET ai_job_id = ?,
+         classification_status = ?,
+         updated_at = ?
+     WHERE id IN (${placeholders})`,
+    [input.jobId, input.classificationStatus ?? "queued", Date.now(), ...input.candidateIds],
+  );
+}
+
+export function applyMerchantMemorySuggestion(input: {
+  candidateId: string;
+  categoryId: string;
+  confidence: number;
+  merchantKey: string | null;
+}) {
+  ensureSmsCandidateAiColumns();
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET category_id = ?,
+         merchant_key = COALESCE(?, merchant_key),
+         classification_source = 'merchant_memory',
+         classification_status = 'classified',
+         classification_confidence = ?,
+         classification_reason = 'Matched from local merchant memory.',
+         updated_at = ?
+     WHERE id = ?`,
+    [input.categoryId, input.merchantKey, input.confidence, Date.now(), input.candidateId],
+  );
+}
+
+export function applyAiClassificationResult(input: {
+  candidateId: string;
+  categoryId: string | null;
+  categoryProposalId: string | null;
+  confidence: number | null;
+  merchantKey: string | null;
+  reason: string | null;
+  suggestedCategoryLabel: string | null;
+}) {
+  ensureSmsCandidateAiColumns();
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET category_id = ?,
+         category_proposal_id = ?,
+         merchant_key = COALESCE(?, merchant_key),
+         classification_source = 'ai',
+         classification_status = 'classified',
+         classification_confidence = ?,
+         classification_reason = ?,
+         suggested_category_label = ?,
+         updated_at = ?
+     WHERE id = ?`,
+    [
+      input.categoryId,
+      input.categoryProposalId,
+      input.merchantKey,
+      input.confidence,
+      input.reason,
+      input.suggestedCategoryLabel,
+      Date.now(),
+      input.candidateId,
+    ],
+  );
+}
+
+export function markSmsCandidateAiFailed(input: {
+  candidateId: string;
+  error: string;
+  jobId: string;
+}) {
+  ensureSmsCandidateAiColumns();
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET ai_job_id = ?,
+         classification_status = 'failed',
+         classification_reason = ?,
+         updated_at = ?
+     WHERE id = ?`,
+    [input.jobId, input.error, Date.now(), input.candidateId],
+  );
+}
+
+export function updateSmsCandidateCategory(input: {
+  categoryId: string | null;
+  candidateId: string;
+}) {
+  ensureSmsCandidateAiColumns();
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET category_id = ?,
+         category_proposal_id = CASE WHEN ? IS NULL THEN category_proposal_id ELSE NULL END,
+         classification_source = 'user',
+         classification_status = CASE
+           WHEN ? IS NULL THEN classification_status
+           ELSE 'classified'
+         END,
+         updated_at = ?
+     WHERE id = ?`,
+    [input.categoryId, input.categoryId, input.categoryId, Date.now(), input.candidateId],
+  );
+}
+
+export function applyAiParsedSmsResult(input: {
+  amountMinor: number;
+  cleanDescription: string;
+  confidence: number;
+  currency: string;
+  direction: "expense" | "income";
+  merchant: string;
+  messageId: string;
+  notes?: string;
+  occurredAt: number;
+  parserKey: string;
+  reference?: string | null;
+}) {
+  sqliteDatabase.runSync(
+    `UPDATE sms_messages
+     SET parse_status = 'matched',
+         parser_key = ?,
+         metadata_json = ?,
+         updated_at = ?
+     WHERE id = ?`,
+    [
+      input.parserKey,
+      JSON.stringify({
+        amountMinor: input.amountMinor,
+        cleanDescription: input.cleanDescription,
+        confidence: input.confidence,
+        currency: input.currency,
+        direction: input.direction,
+        merchant: input.merchant,
+        reference: input.reference ?? null,
+      }),
+      Date.now(),
+      input.messageId,
+    ],
+  );
+
+  upsertSmsCandidate({
+    amountMinor: input.amountMinor,
+    categoryId: null,
+    confidence: input.confidence,
+    currency: input.currency,
+    direction: input.direction,
+    merchant: input.merchant,
+    notes: input.notes,
+    occurredAt: input.occurredAt,
+    parserKey: input.parserKey,
+    reference: input.reference ?? undefined,
+    smsMessageId: input.messageId,
+  });
+}
+
+export function getSmsCandidateFeedbackContext(id: string) {
+  ensureSmsCandidateAiColumns();
+  return (
+    sqliteDatabase.getFirstSync<{
+      aiJobId: string | null;
+      categoryId: string | null;
+      categoryLabel: string;
+      classificationSource: "rule" | "merchant_memory" | "ai" | "user";
+      merchant: string;
+      merchantKey: string | null;
+      suggestedCategoryLabel: string | null;
+    }>(
+      `SELECT
+        c.ai_job_id AS aiJobId,
+        c.category_id AS categoryId,
+        COALESCE(cat.label, 'Other') AS categoryLabel,
+        c.classification_source AS classificationSource,
+        c.merchant AS merchant,
+        c.merchant_key AS merchantKey,
+        c.suggested_category_label AS suggestedCategoryLabel
+       FROM sms_transaction_candidates c
+       LEFT JOIN categories cat
+         ON cat.id = c.category_id
+       WHERE c.id = ?
+       LIMIT 1`,
+      [id],
+    ) ?? null
+  );
 }
 
 export function updateTransaction(id: string, input: UpdateTransactionInput) {
@@ -1014,6 +2069,209 @@ export function serializeTransactionForSync(id: string) {
   return transaction;
 }
 
+export function updateSmsSyncState(input: {
+  isListenerEnabled?: boolean;
+  lastError?: string | null;
+  lastImportCount?: number | null;
+  lastImportedAt?: number | null;
+  lastListenerEventAt?: number | null;
+}) {
+  ensureSmsSyncStateRow();
+  const current = sqliteDatabase.getFirstSync<{
+    isListenerEnabled: number;
+    lastError: string | null;
+    lastImportCount: number | null;
+    lastImportedAt: number | null;
+    lastListenerEventAt: number | null;
+  }>(
+    `SELECT
+      listener_enabled AS isListenerEnabled,
+      last_error AS lastError,
+      last_import_count AS lastImportCount,
+      last_imported_at AS lastImportedAt,
+      last_listener_event_at AS lastListenerEventAt
+     FROM sms_sync_state
+     WHERE scope = 'default'`,
+  );
+
+  sqliteDatabase.runSync(
+    `UPDATE sms_sync_state
+     SET listener_enabled = ?,
+         last_imported_at = ?,
+         last_import_count = ?,
+         last_listener_event_at = ?,
+         last_error = ?
+     WHERE scope = 'default'`,
+    [
+      input.isListenerEnabled !== undefined
+        ? (input.isListenerEnabled ? 1 : 0)
+        : current?.isListenerEnabled ?? 0,
+      input.lastImportedAt !== undefined ? input.lastImportedAt : current?.lastImportedAt ?? null,
+      input.lastImportCount !== undefined ? input.lastImportCount : current?.lastImportCount ?? null,
+      input.lastListenerEventAt !== undefined ? input.lastListenerEventAt : current?.lastListenerEventAt ?? null,
+      input.lastError !== undefined ? input.lastError : current?.lastError ?? null,
+    ],
+  );
+}
+
+export function getSmsSyncState() {
+  ensureSmsSyncStateRow();
+  return sqliteDatabase.getFirstSync<{
+    isListenerEnabled: number;
+    lastError: string | null;
+    lastImportCount: number | null;
+    lastImportedAt: number | null;
+    lastListenerEventAt: number | null;
+  }>(
+    `SELECT
+      listener_enabled AS isListenerEnabled,
+      last_error AS lastError,
+      last_import_count AS lastImportCount,
+      last_imported_at AS lastImportedAt,
+      last_listener_event_at AS lastListenerEventAt
+     FROM sms_sync_state
+     WHERE scope = 'default'`,
+  );
+}
+
+export function ingestSmsParseResult(input: {
+  body: string;
+  deviceMessageId: string;
+  fingerprint: string;
+  parsed: ParsedSmsCandidate | null;
+  readAt?: number | null;
+  receivedAt: number;
+  sender: string;
+}) {
+  const existingMessage = sqliteDatabase.getFirstSync<{ id: string }>(
+    `SELECT id
+     FROM sms_messages
+     WHERE fingerprint = ?
+     LIMIT 1`,
+    [input.fingerprint],
+  );
+  const messageId = existingMessage?.id ?? input.deviceMessageId;
+
+  upsertSmsMessage({
+    body: input.body,
+    fingerprint: input.fingerprint,
+    id: messageId,
+    metadata: input.parsed ?? undefined,
+    parseStatus: input.parsed?.parseStatus ?? "ignored",
+    parserKey: input.parsed?.parserKey ?? null,
+    readAt: input.readAt ?? null,
+    receivedAt: input.receivedAt,
+    sender: input.sender,
+  });
+
+  if (!input.parsed || input.parsed.parseStatus !== "matched") {
+    return;
+  }
+
+  const candidate = upsertSmsCandidate({
+    amountMinor: input.parsed.amountMinor,
+    categoryId: input.parsed.categoryId,
+    confidence: input.parsed.confidence,
+    currency: input.parsed.currency,
+    direction: input.parsed.direction,
+    merchantKey: normalizeMerchantKey(input.parsed.merchant),
+    merchant: input.parsed.merchant,
+    notes: input.parsed.notes,
+    occurredAt: input.parsed.occurredAt,
+    parserKey: input.parsed.parserKey,
+    reference: input.parsed.reference,
+    smsMessageId: messageId,
+  });
+
+  const shouldAutoAccept =
+    candidate.status === "pending" &&
+    Boolean(candidate.categoryId) &&
+    candidate.confidence >= DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE;
+
+  if (shouldAutoAccept) {
+    acceptSmsCandidate(candidate.id);
+  }
+}
+
+export function markSmsCandidateDismissed(id: string) {
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET status = 'dismissed',
+         updated_at = ?
+     WHERE id = ?`,
+    [Date.now(), id],
+  );
+}
+
+export function acceptSmsCandidate(id: string): string {
+  const candidate = sqliteDatabase.getFirstSync<{
+    amountMinor: number;
+    categoryId: string | null;
+    currency: string;
+    direction: "expense" | "income";
+    merchant: string;
+    notes: string | null;
+    occurredAt: number;
+    reference: string | null;
+    status: "pending" | "accepted" | "dismissed";
+  }>(
+    `SELECT
+      amount_minor AS amountMinor,
+      category_id AS categoryId,
+      currency,
+      direction,
+      merchant,
+      notes,
+      occurred_at AS occurredAt,
+      reference,
+      status
+     FROM sms_transaction_candidates
+     WHERE id = ?
+     LIMIT 1`,
+    [id],
+  );
+
+  if (!candidate) {
+    throw new Error("SMS candidate not found.");
+  }
+
+  if (candidate.status === "accepted") {
+    const existingId = sqliteDatabase.getFirstSync<{ transactionId: string | null }>(
+      `SELECT transaction_id AS transactionId
+       FROM sms_transaction_candidates
+       WHERE id = ?`,
+      [id],
+    )?.transactionId;
+
+    if (existingId) {
+      return existingId;
+    }
+  }
+
+  const transactionId = createTransaction({
+    amount: String(candidate.amountMinor / 100),
+    categoryId: candidate.categoryId ?? "cat-other",
+    currency: candidate.currency,
+    direction: candidate.direction,
+    merchant: candidate.merchant,
+    notes: candidate.notes ?? undefined,
+    reference: candidate.reference ?? undefined,
+    source: "sms",
+    transactionAt: candidate.occurredAt,
+  });
+
+  sqliteDatabase.runSync(
+    `UPDATE sms_transaction_candidates
+     SET status = 'accepted',
+         transaction_id = ?,
+         updated_at = ?
+     WHERE id = ?`,
+    [transactionId, Date.now(), id],
+  );
+
+  return transactionId;
+}
+
 export function getDueOutboxEntries(limit: number): OutboxEntry[] {
   const now = Date.now();
   return sqliteDatabase.getAllSync<OutboxEntry>(
@@ -1085,6 +2343,13 @@ export function markEntitySynced(input: {
        WHERE id = ?`,
       [input.lastSyncedAt, input.version, input.entityId],
     );
+  } else if (input.entityType === "category") {
+    sqliteDatabase.runSync(
+      `UPDATE categories
+       SET server_updated_at = ?, version = ?
+       WHERE id = ?`,
+      [input.lastSyncedAt, input.version, input.entityId],
+    );
   } else if (input.entityType === "import") {
     sqliteDatabase.runSync(
       `UPDATE imports
@@ -1150,6 +2415,47 @@ export function upsertRemoteBudget(input: {
   writeSyncMetadata({
     entityId: String(row.id),
     entityType: "budget",
+    lastSyncedAt: input.serverUpdatedAt,
+    syncStatus: "synced",
+    updatedAt: Date.now(),
+  });
+}
+
+export function upsertRemoteCategory(input: {
+  row: Record<string, unknown>;
+  serverUpdatedAt: number;
+  version: number;
+}) {
+  const row = input.row;
+  sqliteDatabase.runSync(
+    `INSERT INTO categories (
+      id, user_id, label, color, created_at, updated_at, deleted_at, version, server_updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      user_id = excluded.user_id,
+      label = excluded.label,
+      color = excluded.color,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      deleted_at = excluded.deleted_at,
+      version = excluded.version,
+      server_updated_at = excluded.server_updated_at`,
+    [
+      String(row.id),
+      String(row.userId ?? DEFAULT_USER_ID),
+      String(row.label ?? "Other"),
+      String(row.color ?? "#4b5563"),
+      Number(row.createdAt ?? Date.now()),
+      Number(row.updatedAt ?? Date.now()),
+      row.deletedAt ? Number(row.deletedAt) : null,
+      input.version,
+      input.serverUpdatedAt,
+    ],
+  );
+
+  writeSyncMetadata({
+    entityId: String(row.id),
+    entityType: "category",
     lastSyncedAt: input.serverUpdatedAt,
     syncStatus: "synced",
     updatedAt: Date.now(),
@@ -1371,6 +2677,13 @@ export function applyRemoteDelete(input: {
        WHERE id = ?`,
       params,
     );
+  } else if (input.entityType === "category") {
+    sqliteDatabase.runSync(
+      `UPDATE categories
+       SET deleted_at = ?, updated_at = ?, version = ?, server_updated_at = ?
+       WHERE id = ?`,
+      params,
+    );
   } else if (input.entityType === "import") {
     sqliteDatabase.runSync(
       `UPDATE imports
@@ -1435,12 +2748,12 @@ export function updateSyncState(input: {
          last_error = ?
      WHERE scope = ?`,
     [
-      input.lastPullCursor ?? current?.lastPullCursor ?? null,
-      input.lastSuccessfulSyncAt ?? current?.lastSuccessfulSyncAt ?? null,
-      input.lastAttemptedSyncAt ?? current?.lastAttemptedSyncAt ?? null,
-      input.lockedAt ?? current?.lockedAt ?? null,
-      input.lockOwner ?? current?.lockOwner ?? null,
-      input.lastError ?? current?.lastError ?? null,
+      input.lastPullCursor !== undefined ? input.lastPullCursor : current?.lastPullCursor ?? null,
+      input.lastSuccessfulSyncAt !== undefined ? input.lastSuccessfulSyncAt : current?.lastSuccessfulSyncAt ?? null,
+      input.lastAttemptedSyncAt !== undefined ? input.lastAttemptedSyncAt : current?.lastAttemptedSyncAt ?? null,
+      input.lockedAt !== undefined ? input.lockedAt : current?.lockedAt ?? null,
+      input.lockOwner !== undefined ? input.lockOwner : current?.lockOwner ?? null,
+      input.lastError !== undefined ? input.lastError : current?.lastError ?? null,
       DEFAULT_SYNC_SCOPE,
     ],
   );
@@ -1474,5 +2787,26 @@ function safeParseJson<T>(value: string, fallback: T) {
     return JSON.parse(value) as T;
   } catch {
     return fallback;
+  }
+}
+
+function normalizeCategoryLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function ensureUniqueCategoryLabel(label: string, excludeId?: string) {
+  const existing = sqliteDatabase.getFirstSync<{ id: string }>(
+    `SELECT id
+     FROM categories
+     WHERE user_id = ?
+       AND deleted_at IS NULL
+       AND LOWER(TRIM(label)) = LOWER(TRIM(?))
+       AND (? IS NULL OR id != ?)
+     LIMIT 1`,
+    [DEFAULT_USER_ID, label, excludeId ?? null, excludeId ?? ""],
+  );
+
+  if (existing) {
+    throw new Error("A category with this label already exists.");
   }
 }

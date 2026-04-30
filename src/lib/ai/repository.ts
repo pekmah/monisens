@@ -211,6 +211,17 @@ export function attachAiBackendJob(jobId: string, backendJobId: string) {
   );
 }
 
+export function updateAiJobPayload(jobId: string, payload: Record<string, unknown>) {
+  ensureAiTables();
+  sqliteDatabase.runSync(
+    `UPDATE ai_jobs
+     SET payload_json = ?,
+         updated_at = ?
+     WHERE id = ?`,
+    [JSON.stringify(payload), Date.now(), jobId],
+  );
+}
+
 export function updateAiJobFromBackend(input: {
   backendJobId?: string | null;
   completedAt?: number | null;
@@ -318,15 +329,16 @@ export function markAiJobItemCompleted(id: string, result?: Record<string, unkno
   );
 }
 
-export function markAiJobItemFailed(id: string, error: string) {
+export function markAiJobItemFailed(id: string, error: string, result?: Record<string, unknown>) {
   ensureAiTables();
   sqliteDatabase.runSync(
     `UPDATE ai_job_items
      SET status = 'failed',
+         result_json = ?,
          last_error = ?,
          updated_at = ?
      WHERE id = ?`,
-    [error, Date.now(), id],
+    [result ? JSON.stringify(result) : null, error, Date.now(), id],
   );
 }
 
@@ -375,7 +387,15 @@ export function listActiveRemoteAiJobs() {
       completed_at AS completedAt
      FROM ai_jobs
      WHERE backend_job_id IS NOT NULL
-       AND status IN ('pending', 'running')
+       AND (
+         status IN ('pending', 'running')
+         OR EXISTS (
+           SELECT 1
+           FROM ai_job_items ji
+           WHERE ji.job_id = ai_jobs.id
+             AND ji.status != 'completed'
+         )
+       )
      ORDER BY created_at ASC`,
   );
 }

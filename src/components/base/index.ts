@@ -19,6 +19,9 @@ export type { DividerProps } from './divider';
 export { ConfirmationDialog } from './confirmation-dialog';
 export type { ConfirmationDialogProps } from './confirmation-dialog';
 
+export { OptionSelectField } from './option-select-field';
+export type { OptionSelectFieldProps, OptionSelectItem } from './option-select-field';
+
 export { EmptyState } from './empty-state';
 export type { EmptyStateProps } from './empty-state';
 

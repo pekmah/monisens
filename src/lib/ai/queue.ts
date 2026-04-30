@@ -1,4 +1,10 @@
-import { DEFAULT_AI_RETRY_BACKOFF_MS, DEFAULT_AI_RUN_BATCH_SIZE } from "@/lib/ai/constants";
+import * as Crypto from "expo-crypto";
+
+import {
+  DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE,
+  DEFAULT_AI_RETRY_BACKOFF_MS,
+  DEFAULT_AI_RUN_BATCH_SIZE,
+} from "@/lib/ai/constants";
 import { emitAiQueueUpdate } from "@/lib/ai/events";
 import {
   attachAiBackendJob,
@@ -16,20 +22,23 @@ import {
   markAiJobItemRunning,
   markAiJobProgress,
   markAiJobRunning,
+  updateAiJobPayload,
   updateAiJobFromBackend,
   upsertCategoryProposal,
 } from "@/lib/ai/repository";
 import { createAiTransport, type RemoteBatchResults, type RemoteBatchSnapshot, type RemoteClassification, type RemoteParsedSms } from "@/lib/ai/transport";
-import { normalizeLabelKey, normalizeMerchantKey } from "@/lib/ai/utils";
+import { normalizeMerchantKey, resolveCategoryFromSuggestion } from "@/lib/ai/utils";
 import { DEFAULT_USER_ID } from "@/lib/finance/constants";
 import {
   applyAiClassificationResult,
   applyAiParsedSmsResult,
   applyMerchantMemorySuggestion,
+  acceptSmsCandidate,
   listCategories,
   listSmsCandidateIdsForMessageIds,
   listSmsCandidateIdsNeedingAi,
   listSmsCandidatesForClassification,
+  listSmsMessageIdsForCandidateIds,
   listSmsMessageIdsNeedingAiParse,
   listSmsMessagesForAiParse,
   markSmsCandidateAiFailed,
@@ -48,38 +57,38 @@ export function supportsAiStreaming() {
 }
 
 export function enqueuePendingSmsAiJobs(scope: "sms_single" | "sms_batch" | "import_batch" = "sms_single") {
+  if (!aiTransport.isConfigured) {
+    return {
+      classifyJobId: null,
+      parseJobId: null,
+    };
+  }
+
   const parseMessageIds = listSmsMessageIdsNeedingAiParse();
+  const classifyCandidateIds = resolveCandidatesForAi();
+  const classifyMessageIds = listSmsMessageIdsForCandidateIds(classifyCandidateIds);
+  const messageIds = Array.from(new Set([...parseMessageIds, ...classifyMessageIds]));
   const parseJobId = createAiJob({
-    itemIds: parseMessageIds,
+    itemIds: messageIds,
     itemType: "sms_message",
     jobType: "parse_sms",
+    payload: {
+      itemIds: messageIds,
+      scope,
+    },
     scope,
   });
 
-  let classifyJobId: string | null = null;
-  if (scope === "sms_single" || !aiTransport.isConfigured) {
-    const candidateIds = resolveCandidatesForAi();
-    classifyJobId = createAiJob({
-      itemIds: candidateIds,
-      itemType: "sms_candidate",
-      jobType: "classify_candidate",
-      scope,
+  if (parseJobId) {
+    markSmsCandidateAiQueued({
+      candidateIds: classifyCandidateIds,
+      jobId: parseJobId,
     });
-
-    if (classifyJobId) {
-      markSmsCandidateAiQueued({
-        candidateIds,
-        jobId: classifyJobId,
-      });
-    }
-  }
-
-  if (parseJobId || classifyJobId) {
     emitAiQueueUpdate();
   }
 
   return {
-    classifyJobId,
+    classifyJobId: null,
     parseJobId,
   };
 }
@@ -246,23 +255,7 @@ async function processParseSmsItem(messageId: string, scope: "sms_single" | "sms
     reference: parsed.reference,
   });
 
-  const candidateIds = listSmsCandidateIdsForMessageIds([messageId]);
-  if (candidateIds.length > 0) {
-    const queueableCandidateIds = resolveCandidatesForAi(candidateIds);
-    const classifyJobId = createAiJob({
-      itemIds: queueableCandidateIds,
-      itemType: "sms_candidate",
-      jobType: "classify_candidate",
-      scope,
-    });
-
-    if (classifyJobId) {
-      markSmsCandidateAiQueued({
-        candidateIds: queueableCandidateIds,
-        jobId: classifyJobId,
-      });
-    }
-  }
+  void scope;
 }
 
 async function processRemoteBatchParseJob(
@@ -276,6 +269,26 @@ async function processRemoteBatchParseJob(
     return;
   }
 
+  const messagesWithHashes = await Promise.all(
+    messages.map(async (message) => ({
+      body: message.body,
+      clientMessageId: message.id,
+      hash: await hashSmsBody(message.body),
+    })),
+  );
+
+  updateAiJobPayload(jobId, {
+    debug: {
+      itemCount: messagesWithHashes.length,
+      messages: messagesWithHashes.map((message) => ({
+        clientMessageId: message.clientMessageId,
+        hash: message.hash,
+      })),
+    },
+    itemIds: targetItems.map((item) => item.itemId),
+    scope,
+  });
+
   for (const item of targetItems) {
     markAiJobItemRunning(item.id);
   }
@@ -283,7 +296,10 @@ async function processRemoteBatchParseJob(
   const snapshot = await aiTransport.queueBulkSmsIngest({
     clientBatchId: jobId,
     existingCategories: listCategories().map((entry) => entry.label),
-    messages: messages.map((message) => message.body),
+    messages: messagesWithHashes.map((message) => ({
+      clientMessageId: message.clientMessageId,
+      message: message.body,
+    })),
     userId: DEFAULT_USER_ID,
   });
 
@@ -332,9 +348,7 @@ async function processClassifyCandidateItem(candidateId: string) {
     userId: DEFAULT_USER_ID,
   });
 
-  const matchedCategory = result.suggestedCategory
-    ? categories.find((entry) => entry.label.toLowerCase() === result.suggestedCategory?.toLowerCase()) ?? null
-    : null;
+  const matchedCategory = resolveCategoryFromSuggestion(categories, result.suggestedCategory);
   const categoryProposalId = result.categoryProposal?.proposedName
     ? upsertCategoryProposal({
         linkedCandidateId: candidateId,
@@ -399,10 +413,13 @@ async function syncRemoteAiJob(jobId: string) {
 }
 
 async function applyRemoteBatchResults(jobId: string, results: RemoteBatchResults) {
+  const job = getAiJobById(jobId);
   const items = listAiJobItems(jobId);
   const itemByMessageId = new Map(items.map((item) => [item.itemId, item]));
   const messages = listSmsMessagesForAiParse(items.map((item) => item.itemId));
   const hashGroups = new Map<string, typeof messages>();
+  const payload = parseJobPayload(job?.payloadJson);
+  const clientMessageMap = new Map<string, string>();
 
   for (const message of messages) {
     const hash = await hashSmsBody(message.body);
@@ -411,33 +428,55 @@ async function applyRemoteBatchResults(jobId: string, results: RemoteBatchResult
     hashGroups.set(hash, group);
   }
 
+  for (const debugMessage of payload?.debug?.messages ?? []) {
+    if (debugMessage.clientMessageId) {
+      clientMessageMap.set(debugMessage.clientMessageId, debugMessage.clientMessageId);
+    }
+  }
+
   const categories = listCategories();
   let firstError: string | null = null;
 
   for (const result of results.results) {
-    const matchedMessages = hashGroups.get(result.rawSmsHash) ?? [];
+    const mappedClientMessageId = result.clientMessageId
+      ? clientMessageMap.get(result.clientMessageId) ?? null
+      : null;
+    const matchedMessages =
+      mappedClientMessageId
+        ? messages.filter((message) => message.id === mappedClientMessageId)
+        : hashGroups.get(result.rawSmsHash) ?? [];
     if (matchedMessages.length === 0) {
+      firstError ??= "No local SMS message matched AI batch result.";
       continue;
     }
 
-    if (
-      result.status !== "completed" ||
-      !result.parsedTransaction ||
-      !result.parsedTransaction.amount ||
-      !result.parsedTransaction.currency ||
-      !result.parsedTransaction.merchantName ||
-      !isSupportedTransactionType(result.parsedTransaction.transactionType)
-    ) {
+    if (result.status !== "completed") {
       const errorMessage = result.errorMessage ?? "AI batch item failed.";
       firstError ??= errorMessage;
       for (const message of matchedMessages) {
         const item = itemByMessageId.get(message.id);
         if (item) {
-          markAiJobItemFailed(item.id, errorMessage);
+          markAiJobItemFailed(item.id, errorMessage, {
+            debug: {
+              matchedMessageId: message.id,
+              rawSmsHash: result.rawSmsHash,
+              remoteClientMessageId: result.clientMessageId ?? null,
+              status: result.status,
+            },
+            remoteResult: result,
+          });
         }
       }
       continue;
     }
+
+    const hasUsableParse = Boolean(
+      result.parsedTransaction &&
+        result.parsedTransaction.amount &&
+        result.parsedTransaction.currency &&
+        result.parsedTransaction.merchantName &&
+        isSupportedTransactionType(result.parsedTransaction.transactionType),
+    );
 
     for (const message of matchedMessages) {
       const item = itemByMessageId.get(message.id);
@@ -445,20 +484,47 @@ async function applyRemoteBatchResults(jobId: string, results: RemoteBatchResult
         continue;
       }
 
-      applyParsedTransactionToMessage(
-        message.id,
-        message.receivedAt,
-        result.parsedTransaction as RemoteParsedSms & {
-          transactionType: "expense" | "income";
-        },
-      );
       const candidateIds = listSmsCandidateIdsForMessageIds([message.id]);
-      applyRemoteClassificationToCandidates(
-        candidateIds,
-        result.classification,
-        result.parsedTransaction,
-        categories,
-      );
+      let applied = false;
+
+      if (hasUsableParse) {
+        applyParsedTransactionToMessage(
+          message.id,
+          message.receivedAt,
+          result.parsedTransaction as RemoteParsedSms & {
+            transactionType: "expense" | "income";
+          },
+        );
+        applied = true;
+      }
+
+      if (candidateIds.length > 0 && result.classification) {
+        applyRemoteClassificationToCandidates(
+          candidateIds,
+          result.classification,
+          result.parsedTransaction,
+          categories,
+        );
+        applied = true;
+      }
+
+      if (!applied) {
+        const errorMessage = result.errorMessage ?? "AI batch item failed.";
+        firstError ??= errorMessage;
+        markAiJobItemFailed(item.id, errorMessage, {
+          debug: {
+            candidateIds,
+            hasClassification: Boolean(result.classification),
+            hasUsableParse,
+            matchedMessageId: message.id,
+            rawSmsHash: result.rawSmsHash,
+            remoteClientMessageId: result.clientMessageId ?? null,
+          },
+          remoteResult: result,
+        });
+        continue;
+      }
+
       markAiJobItemCompleted(item.id, {
         classification: result.classification,
         parsedTransaction: result.parsedTransaction,
@@ -468,7 +534,12 @@ async function applyRemoteBatchResults(jobId: string, results: RemoteBatchResult
 
   for (const item of items) {
     if (!messages.find((message) => message.id === item.itemId)) {
-      markAiJobItemFailed(item.id, "SMS message missing while applying AI batch results.");
+      markAiJobItemFailed(item.id, "SMS message missing while applying AI batch results.", {
+        debug: {
+          itemId: item.itemId,
+          reason: "missing_local_message",
+        },
+      });
       firstError ??= "SMS message missing while applying AI batch results.";
     }
   }
@@ -508,19 +579,14 @@ function applyParsedTransactionToMessage(
 function applyRemoteClassificationToCandidates(
   candidateIds: string[],
   result: RemoteClassification | null,
-  parsed: RemoteParsedSms,
+  parsed: RemoteParsedSms | null,
   categories: ReturnType<typeof listCategories>,
 ) {
   if (candidateIds.length === 0 || !result) {
     return;
   }
 
-  const matchedCategory = result.suggestedCategory
-    ? categories.find(
-        (entry) =>
-          normalizeLabelKey(entry.label) === normalizeLabelKey(result.suggestedCategory ?? ""),
-      ) ?? null
-    : null;
+  const matchedCategory = resolveCategoryFromSuggestion(categories, result.suggestedCategory);
   const proposalName =
     result.categoryProposal?.proposedName ??
     (result.suggestedCategory && !matchedCategory ? result.suggestedCategory : null);
@@ -534,24 +600,49 @@ function applyRemoteClassificationToCandidates(
       : null;
 
     if (result.source === "merchant_memory" && matchedCategory?.id) {
+      const normalizedConfidence = result.confidence
+        ? Math.round(result.confidence * 100)
+        : 90;
       applyMerchantMemorySuggestion({
         candidateId,
         categoryId: matchedCategory.id,
-        confidence: result.confidence ? Math.round(result.confidence * 100) : 90,
-        merchantKey: normalizeMerchantKey(parsed.merchantName),
+        confidence: normalizedConfidence,
+        merchantKey: normalizeMerchantKey(parsed?.merchantName),
       });
+
+      if (shouldAutoAcceptClassification({
+        categoryId: matchedCategory.id,
+        confidence: normalizedConfidence,
+        hasCategoryProposal: false,
+        needsReview: result.needsReview,
+      })) {
+        acceptSmsCandidate(candidateId);
+      }
       continue;
     }
+
+    const normalizedConfidence = result.confidence
+      ? Math.round(result.confidence * 100)
+      : null;
 
     applyAiClassificationResult({
       candidateId,
       categoryId: matchedCategory?.id ?? null,
       categoryProposalId,
-      confidence: result.confidence ? Math.round(result.confidence * 100) : null,
-      merchantKey: normalizeMerchantKey(parsed.merchantName),
+      confidence: normalizedConfidence,
+      merchantKey: normalizeMerchantKey(parsed?.merchantName),
       reason: result.reason,
       suggestedCategoryLabel: result.suggestedCategory ?? proposalName ?? null,
     });
+
+    if (shouldAutoAcceptClassification({
+      categoryId: matchedCategory?.id ?? null,
+      confidence: normalizedConfidence,
+      hasCategoryProposal: Boolean(categoryProposalId),
+      needsReview: result.needsReview,
+    })) {
+      acceptSmsCandidate(candidateId);
+    }
   }
 }
 
@@ -560,7 +651,11 @@ function resolveCandidatesForAi(candidateIds = listSmsCandidateIdsNeedingAi()) {
   const queueableIds: string[] = [];
 
   for (const candidate of candidates) {
-    if (candidate.categoryId && candidate.classificationStatus === "not_needed" && candidate.confidence >= 85) {
+    if (
+      candidate.categoryId &&
+      candidate.classificationStatus === "not_needed" &&
+      candidate.confidence >= DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE
+    ) {
       continue;
     }
 
@@ -581,6 +676,21 @@ function resolveCandidatesForAi(candidateIds = listSmsCandidateIdsNeedingAi()) {
   return queueableIds;
 }
 
+function shouldAutoAcceptClassification(input: {
+  categoryId: string | null;
+  confidence: number | null;
+  hasCategoryProposal: boolean;
+  needsReview: boolean;
+}) {
+  return Boolean(
+    input.categoryId &&
+      input.confidence !== null &&
+      input.confidence >= DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE &&
+      !input.hasCategoryProposal &&
+      !input.needsReview,
+  );
+}
+
 function isSupportedTransactionType(value: string): value is "income" | "expense" {
   return value === "income" || value === "expense";
 }
@@ -590,7 +700,8 @@ function shouldUseRemoteBatchParse(
   jobType: string,
   itemCount: number,
 ) {
-  return aiTransport.isConfigured && jobType === "parse_sms" && scope !== "sms_single" && itemCount > 0;
+  void scope;
+  return aiTransport.isConfigured && jobType === "parse_sms" && itemCount > 0;
 }
 
 function mapBatchStatusToJobStatus(
@@ -628,16 +739,45 @@ function isRemoteBatchTerminal(status: RemoteBatchSnapshot["status"]) {
 }
 
 async function hashSmsBody(body: string) {
-  if (!globalThis.crypto?.subtle) {
-    throw new Error("Secure hashing is unavailable in this runtime.");
+  try {
+    return await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      body,
+    );
+  } catch {
+    return fallbackHashSmsBody(body);
+  }
+}
+
+function fallbackHashSmsBody(body: string) {
+  let hash = 0;
+
+  for (let index = 0; index < body.length; index += 1) {
+    hash = (hash << 5) - hash + body.charCodeAt(index);
+    hash |= 0;
   }
 
-  const digest = await globalThis.crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(body),
-  );
+  return `fallback:${Math.abs(hash).toString(16)}`;
+}
 
-  return Array.from(new Uint8Array(digest))
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
+function parseJobPayload(payloadJson: string | undefined) {
+  if (!payloadJson) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(payloadJson) as {
+      debug?: {
+        itemCount?: number;
+        messages?: Array<{
+          clientMessageId: string;
+          hash: string;
+        }>;
+      };
+      itemIds?: string[];
+      scope?: string;
+    };
+  } catch {
+    return null;
+  }
 }

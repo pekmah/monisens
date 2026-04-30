@@ -1,21 +1,30 @@
+import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppFlashList, AppText } from "@/components/base";
-import { Sizes, Spacing } from "@/constants/theme";
+import { AppFlashList, AppPressable, AppText } from "@/components/base";
+import { Radii, Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
   TransactionSection,
   TransactionsToolbar,
 } from "@/features/tabs/transactions/components";
+import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFinance } from "@/lib/finance";
 
 export default function TransactionsScreen() {
+  const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { error, ready, searchText, setSearchText, snapshot } = useFinance();
 
   return (
     <TabScreen>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Sizes["15xl"] + Math.max(insets.bottom, Spacing.lg) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <TransactionsToolbar
@@ -45,6 +54,20 @@ export default function TransactionsScreen() {
           </AppText>
         )}
       </ScrollView>
+
+      <AppPressable
+        accessibilityLabel="Add transaction"
+        onPress={() => router.push("/transactions/new")}
+        style={[
+          styles.fab,
+          {
+            backgroundColor: theme.colors.primary,
+            bottom: Math.max(insets.bottom, Spacing.lg) + Sizes["6xl"],
+          },
+        ]}
+      >
+        <Feather color={theme.colors.onPrimary} name="plus" size={Sizes["3xl"]} />
+      </AppPressable>
     </TabScreen>
   );
 }
@@ -53,6 +76,16 @@ const styles = StyleSheet.create({
   content: {
     gap: Sizes.xl,
     paddingBottom: Sizes["xl"],
+  },
+  fab: {
+    alignItems: "center",
+    borderRadius: Radii.full,
+    height: Sizes["11xl"],
+    justifyContent: "center",
+    position: "absolute",
+    right: Spacing.xl,
+    width: Sizes["11xl"],
+    zIndex: 2,
   },
   sectionSeparator: {
     height: Sizes.xl,

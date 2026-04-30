@@ -1,5 +1,5 @@
 import { router, Tabs, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { AppButton, AppSafeArea, AppText, ConfirmationDialog } from "@/components/base";
@@ -17,11 +17,40 @@ import { formatTransactionMetaDate, useFinance } from "@/lib/finance";
 
 export default function TransactionDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const { deleteTransaction, snapshot, updateTransaction } = useFinance();
-  const transaction = snapshot?.transactions.find((item) => item.id === params.id);
+  const { deleteTransaction, loadTransactionById, snapshot, updateTransaction } = useFinance();
+  const snapshotTransaction = snapshot?.transactions.find((item) => item.id === params.id);
+  const [transaction, setTransaction] = useState(snapshotTransaction ?? null);
   const [editingCategory, setEditingCategory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (snapshotTransaction) {
+      setTransaction(snapshotTransaction);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!params.id) {
+      setTransaction(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void loadTransactionById(params.id).then((result) => {
+      if (!cancelled) {
+        setTransaction(result);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadTransactionById, params.id, snapshotTransaction]);
 
   if (!transaction) {
     return (

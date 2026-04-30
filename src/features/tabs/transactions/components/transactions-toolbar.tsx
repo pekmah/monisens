@@ -1,9 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { StyleSheet, TextInput, View } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
-import { AppButton } from "@/components/base/button";
 import { font } from "@/constants/fonts";
 import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -56,12 +54,6 @@ export function TransactionsToolbar({
           value={searchText}
         />
       </View>
-
-      <AppButton
-        fullWidth
-        onPress={() => router.push("/transactions/new")}
-        title="Add transaction"
-      />
     </View>
   );
 }

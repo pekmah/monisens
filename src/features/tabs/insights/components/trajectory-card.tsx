@@ -25,7 +25,7 @@ export function TrajectoryCard({
 
   if (!trajectory) {
     return (
-      <SurfaceCard elevated style={styles.card}>
+      <SurfaceCard style={styles.card}>
         <AppText style={styles.cardTitle} variant="titleMd">
           Monthly Spend
         </AppText>
@@ -74,7 +74,13 @@ export function TrajectoryCard({
           <View style={styles.deltaRow}>
             <Feather color={deltaColor} name={deltaIcon} size={12} />
             <AppText
-              color={trajectory.trend === "up" ? "error" : trajectory.trend === "down" ? "primary" : "mutedText"}
+              color={
+                trajectory.trend === "up"
+                  ? "error"
+                  : trajectory.trend === "down"
+                    ? "primary"
+                    : "mutedText"
+              }
               style={styles.delta}
               variant="labelMd"
             >
@@ -99,9 +105,33 @@ export function TrajectoryCard({
               />
             </LinearGradient>
           </Defs>
-          <Line opacity={0.24} stroke={theme.colors.outline} strokeWidth={0.18} x1="0" x2="100" y1="10" y2="10" />
-          <Line opacity={0.24} stroke={theme.colors.outline} strokeWidth={0.18} x1="0" x2="100" y1="20" y2="20" />
-          <Line opacity={0.24} stroke={theme.colors.outline} strokeWidth={0.18} x1="0" x2="100" y1="30" y2="30" />
+          <Line
+            opacity={0.24}
+            stroke={theme.colors.outline}
+            strokeWidth={0.18}
+            x1="0"
+            x2="100"
+            y1="10"
+            y2="10"
+          />
+          <Line
+            opacity={0.24}
+            stroke={theme.colors.outline}
+            strokeWidth={0.18}
+            x1="0"
+            x2="100"
+            y1="20"
+            y2="20"
+          />
+          <Line
+            opacity={0.24}
+            stroke={theme.colors.outline}
+            strokeWidth={0.18}
+            x1="0"
+            x2="100"
+            y1="30"
+            y2="30"
+          />
           <Path d={areaPath} fill="url(#chartGradient)" />
           <Path
             d={linePath}
@@ -110,8 +140,19 @@ export function TrajectoryCard({
             strokeLinecap="round"
             strokeWidth={0.8}
           />
-          <Circle cx={lastPoint.x} cy={lastPoint.y} fill={theme.colors.secondary} r="1.25" />
-          <Circle cx={lastPoint.x} cy={lastPoint.y} fill={theme.colors.secondary} opacity={0.18} r="2.7" />
+          <Circle
+            cx={lastPoint.x}
+            cy={lastPoint.y}
+            fill={theme.colors.secondary}
+            r="1.25"
+          />
+          <Circle
+            cx={lastPoint.x}
+            cy={lastPoint.y}
+            fill={theme.colors.secondary}
+            opacity={0.18}
+            r="2.7"
+          />
         </Svg>
       </View>
       <AppFlashList
@@ -165,6 +206,8 @@ const styles = StyleSheet.create({
   card: {
     gap: Spacing.xl,
     padding: Sizes["3xl"],
+    borderWidth: Sizes.xxs - 1,
+    borderColor: "rgba(0,0,0,0.07)",
   },
   cardTitle: {
     fontFamily: font.headerSemiBold,

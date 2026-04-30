@@ -5,6 +5,7 @@ import { StyleSheet, View } from "react-native";
 import {
   AppButton,
   AppFlashList,
+  OptionSelectField,
   AppPressable,
   AppText,
   AppTextInput,
@@ -224,52 +225,18 @@ export default function TransactionEntryScreen() {
             { backgroundColor: theme.colors.surfaceContainerLowest },
           ]}
         >
-          <AppText style={styles.sectionTitle} variant="titleMd">
-            Category
-          </AppText>
           {snapshot?.categories.length ? (
-            <AppFlashList
-              data={snapshot.categories}
-              horizontal
-              keyExtractor={(category) => category.id}
-              renderItem={({ item: category }) => {
-                const isActive = category.id === categoryId;
-
-                return (
-                  <AppPressable
-                    onPress={() => setCategoryId(category.id)}
-                    style={[
-                      styles.categoryPill,
-                      {
-                        backgroundColor: isActive
-                          ? `${category.color}20`
-                          : theme.colors.surfaceContainerLow,
-                        borderColor: isActive
-                          ? category.color
-                          : theme.colors.outlineVariant,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[styles.categoryDot, { backgroundColor: category.color }]}
-                    />
-                    <AppText
-                      style={[
-                        styles.categoryText,
-                        {
-                          color: isActive ? category.color : theme.colors.text,
-                        },
-                      ]}
-                      variant="labelMd"
-                    >
-                      {category.label}
-                    </AppText>
-                  </AppPressable>
-                );
-              }}
-              scrollEnabled
-              showsHorizontalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View style={styles.categorySeparator} />}
+            <OptionSelectField
+              label="Category"
+              onSelect={setCategoryId}
+              options={snapshot.categories.map((category) => ({
+                accentColor: category.color,
+                label: category.label,
+                value: category.id,
+              }))}
+              placeholder="Choose a category"
+              selectedValue={categoryId}
+              title="Select category"
             />
           ) : (
             <AppText color="mutedText" variant="bodyMd">
@@ -328,26 +295,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.xl,
     gap: Spacing.lg,
     padding: Spacing.lg,
-  },
-  categoryDot: {
-    borderRadius: Radii.full,
-    height: Sizes.sm,
-    width: Sizes.sm,
-  },
-  categoryPill: {
-    alignItems: "center",
-    borderRadius: Radii.full,
-    borderWidth: Sizes.hairline,
-    flexDirection: "row",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  categorySeparator: {
-    width: Spacing.sm,
-  },
-  categoryText: {
-    fontFamily: font.medium,
   },
   content: {
     gap: Spacing.lg,

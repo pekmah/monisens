@@ -11,8 +11,10 @@ import {
   updateSyncState,
   upsertRemoteAttachment,
   upsertRemoteBudget,
+  upsertRemoteCategory,
   upsertRemoteImport,
   upsertRemoteTransaction,
+  writeSyncMetadata,
 } from "@/lib/finance/repository";
 import { createSyncTransport, SyncTransportDisabledError } from "@/lib/finance/sync-transport";
 import type { PullChangeRecord, SyncTrigger } from "@/lib/finance/types";
@@ -56,7 +58,7 @@ export async function runFinanceSync(trigger: SyncTrigger) {
   });
 
   try {
-    await pushOutbox();
+    const pushFailures = await pushOutbox();
     const nextCursor = await pullChanges(current?.lastPullCursor ?? null);
     rebuildSummaryTables();
     updateSyncState({
@@ -64,6 +66,14 @@ export async function runFinanceSync(trigger: SyncTrigger) {
       lastPullCursor: nextCursor,
       lastSuccessfulSyncAt: Date.now(),
     });
+
+    if (pushFailures.length > 0) {
+      throw new Error(
+        pushFailures.length === 1
+          ? pushFailures[0]
+          : `${pushFailures.length} changes failed to sync. ${pushFailures[0]}`,
+      );
+    }
 
     return { reason: trigger, status: "idle" as const };
   } catch (error) {
@@ -91,6 +101,7 @@ export async function runFinanceSync(trigger: SyncTrigger) {
 
 async function pushOutbox() {
   const entries = getDueOutboxEntries(SYNC_PUSH_BATCH_SIZE);
+  const failures: string[] = [];
 
   for (const entry of entries) {
     markOutboxSyncing(entry.id);
@@ -139,15 +150,26 @@ async function pushOutbox() {
         RETRY_BACKOFF_SCHEDULE_MS[
           Math.min(attemptCount - 1, RETRY_BACKOFF_SCHEDULE_MS.length - 1)
         ];
+      const message = error instanceof Error ? error.message : "Push failed.";
 
       markOutboxFailed({
         attemptCount,
-        error: error instanceof Error ? error.message : "Push failed.",
+        error: message,
         id: entry.id,
         nextRetryAt: Date.now() + retryOffset,
       });
+      writeSyncMetadata({
+        entityId: entry.entityId,
+        entityType: entry.entityType,
+        lastError: message,
+        syncStatus: "failed",
+        updatedAt: Date.now(),
+      });
+      failures.push(`${entry.entityType}:${entry.entityId} - ${message}`);
     }
   }
+
+  return failures;
 }
 
 async function pullChanges(initialCursor: string | null) {
@@ -193,6 +215,15 @@ function applyRemoteChange(change: PullChangeRecord) {
 
   if (change.entityType === "budget") {
     upsertRemoteBudget({
+      row: change.row,
+      serverUpdatedAt: change.serverUpdatedAt,
+      version: change.version,
+    });
+    return;
+  }
+
+  if (change.entityType === "category") {
+    upsertRemoteCategory({
       row: change.row,
       serverUpdatedAt: change.serverUpdatedAt,
       version: change.version,

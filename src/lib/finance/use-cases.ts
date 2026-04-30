@@ -28,6 +28,7 @@ import {
   ensureSyncStateRow,
   deleteCategory,
   getFinanceSnapshot,
+  getTransactionById,
   listPendingSmsCandidatesPage,
   softDeleteTransaction,
   updateCategory,
@@ -133,6 +134,10 @@ export function updateTransactionUseCase(id: string, input: Partial<CreateTransa
 
 export function deleteTransactionUseCase(id: string) {
   softDeleteTransaction(id);
+}
+
+export function loadTransactionByIdUseCase(id: string) {
+  return getTransactionById(id);
 }
 
 export async function getSmsPermissionStatusUseCase() {
@@ -241,6 +246,10 @@ export async function runAiJobQueueUseCase() {
   const result = await runAiQueue();
   await syncRemoteAiJobs();
   return result;
+}
+
+export async function syncRemoteAiJobsUseCase() {
+  await syncRemoteAiJobs();
 }
 
 export function retryAiJobUseCase() {
