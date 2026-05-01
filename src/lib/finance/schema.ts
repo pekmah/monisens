@@ -117,6 +117,11 @@ export const smsMessagesTable = sqliteTable(
     receivedAt: integer("received_at").notNull(),
     readAt: integer("read_at"),
     fingerprint: text("fingerprint").notNull(),
+    sourceProfileId: text("source_profile_id"),
+    sourceAction: text("source_action", {
+      enum: ["process", "exclude"],
+    }),
+    matchScore: integer("match_score"),
     parserKey: text("parser_key"),
     parseStatus: text("parse_status", {
       enum: ["matched", "ignored", "failed"],
@@ -128,6 +133,51 @@ export const smsMessagesTable = sqliteTable(
   (table) => [
     index("sms_messages_fingerprint_idx").on(table.fingerprint),
     index("sms_messages_received_at_idx").on(table.receivedAt),
+    index("sms_messages_source_profile_idx").on(table.sourceProfileId, table.receivedAt),
+  ],
+);
+
+export const smsSourceProfilesTable = sqliteTable(
+  "sms_source_profiles",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    description: text("description"),
+    parserKey: text("parser_key", {
+      enum: ["mpesa", "bank-credit-debit", "none"],
+    }).notNull(),
+    action: text("action", {
+      enum: ["process", "exclude"],
+    }).notNull(),
+    enabled: integer("enabled").notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    index("sms_source_profiles_sort_idx").on(table.enabled, table.sortOrder),
+  ],
+);
+
+export const smsSourceMatchersTable = sqliteTable(
+  "sms_source_matchers",
+  {
+    id: text("id").primaryKey(),
+    profileId: text("profile_id").notNull(),
+    field: text("field", {
+      enum: ["sender", "body"],
+    }).notNull(),
+    matchType: text("match_type", {
+      enum: ["exact", "contains", "regex"],
+    }).notNull(),
+    pattern: text("pattern").notNull(),
+    caseSensitive: integer("case_sensitive").notNull(),
+    enabled: integer("enabled").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    index("sms_source_matchers_profile_idx").on(table.profileId, table.enabled),
   ],
 );
 
@@ -175,6 +225,7 @@ export const smsTransactionCandidatesTable = sqliteTable(
 export const smsSyncStateTable = sqliteTable("sms_sync_state", {
   scope: text("scope").primaryKey(),
   listenerEnabled: integer("listener_enabled").notNull(),
+  importLimit: integer("import_limit").notNull(),
   lastImportedAt: integer("last_imported_at"),
   lastImportCount: integer("last_import_count"),
   lastListenerEventAt: integer("last_listener_event_at"),

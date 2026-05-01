@@ -1,14 +1,21 @@
+import { Feather } from "@expo/vector-icons";
+import {
+  BottomSheetBackdrop,
+  BottomSheetFlatList,
+  BottomSheetModal,
+} from "@gorhom/bottom-sheet";
 import { Stack } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import {
   AppButton,
   AppFlashList,
+  AppPressable,
   AppText,
   AppTextInput,
   ConfirmationDialog,
-  OptionSelectField,
+  NestedScreenHeader,
   Screen,
 } from "@/components/base";
 import { font } from "@/constants/fonts";
@@ -23,6 +30,7 @@ export default function SettingsCategoriesScreen() {
   const theme = useAppTheme();
   const { createCategory, deleteCategory, snapshot, updateCategory } = useFinance();
   const categories = snapshot?.categories ?? [];
+  const colorPickerModalRef = useRef<BottomSheetModal>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [draftColor, setDraftColor] = useState<string>(DEFAULT_NEW_COLOR);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -30,22 +38,78 @@ export default function SettingsCategoriesScreen() {
   const [editingColor, setEditingColor] = useState<string>(DEFAULT_NEW_COLOR);
   const [pendingDelete, setPendingDelete] = useState<CategoryRecord | null>(null);
   const [busy, setBusy] = useState<"create" | "update" | "delete" | null>(null);
+  const [colorPickerTarget, setColorPickerTarget] = useState<"create" | "edit" | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const colorOptions = useMemo(
-    () => CATEGORY_COLOR_OPTIONS.map((color) => ({ accentColor: color, label: color.toUpperCase(), value: color })),
+    () =>
+      [...new Set(CATEGORY_COLOR_OPTIONS)].map((color) => ({
+        accentColor: color,
+        label: color.toUpperCase(),
+        value: color,
+      })),
     [],
+  );
+  const activeColorValue = colorPickerTarget === "edit" ? editingColor : draftColor;
+  const activeColorTitle =
+    colorPickerTarget === "edit" ? "Update category color" : "Choose category color";
+
+  const renderColorPickerBackdrop = useCallback(
+    (
+      props: Parameters<
+        NonNullable<React.ComponentProps<typeof BottomSheetModal>["backdropComponent"]>
+      >[0],
+    ) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.42}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  const closeColorPicker = useCallback(() => {
+    colorPickerModalRef.current?.dismiss();
+  }, []);
+
+  const openColorPicker = useCallback((target: "create" | "edit") => {
+    setColorPickerTarget(target);
+    colorPickerModalRef.current?.present();
+  }, []);
+
+  const handleColorSelect = useCallback(
+    (value: string) => {
+      if (colorPickerTarget === "edit") {
+        setEditingColor(value);
+      } else {
+        setDraftColor(value);
+      }
+      closeColorPicker();
+    },
+    [closeColorPicker, colorPickerTarget],
   );
 
   async function handleCreate() {
     if (!draftLabel.trim()) {
+      setError("Category label is required.");
       return;
     }
 
     setBusy("create");
+    setError(null);
     try {
       await createCategory({ color: draftColor, label: draftLabel });
       setDraftLabel("");
       setDraftColor(DEFAULT_NEW_COLOR);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Failed to create category.",
+      );
     } finally {
       setBusy(null);
     }
@@ -53,15 +117,23 @@ export default function SettingsCategoriesScreen() {
 
   async function handleUpdate() {
     if (!editingId || !editingLabel.trim()) {
+      setError("Category label is required.");
       return;
     }
 
     setBusy("update");
+    setError(null);
     try {
       await updateCategory({ color: editingColor, id: editingId, label: editingLabel });
       setEditingId(null);
       setEditingLabel("");
       setEditingColor(DEFAULT_NEW_COLOR);
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Failed to update category.",
+      );
     } finally {
       setBusy(null);
     }
@@ -73,9 +145,16 @@ export default function SettingsCategoriesScreen() {
     }
 
     setBusy("delete");
+    setError(null);
     try {
       await deleteCategory(pendingDelete.id);
       setPendingDelete(null);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Failed to delete category.",
+      );
     } finally {
       setBusy(null);
     }
@@ -85,17 +164,11 @@ export default function SettingsCategoriesScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <Screen contentContainerStyle={styles.content} scroll>
-        <View style={styles.header}>
-          <AppText color="primary" style={styles.overline} variant="labelMd">
-            SETTINGS
-          </AppText>
-          <AppText style={styles.title} variant="headlineSm">
-            Manage categories
-          </AppText>
-          <AppText color="mutedText" variant="bodyMd">
-            Categories live in SQLite first and sync through the same outbox path as other finance records.
-          </AppText>
-        </View>
+        <NestedScreenHeader
+          description="Categories live in SQLite first and sync through the same outbox path as other finance records."
+          overline="SETTINGS"
+          title="Manage categories"
+        />
 
         <View
           style={[
@@ -115,13 +188,22 @@ export default function SettingsCategoriesScreen() {
             placeholder="e.g. School Fees"
             value={draftLabel}
           />
-          <OptionSelectField
-            label="Color"
-            onSelect={setDraftColor}
-            options={colorOptions}
-            selectedValue={draftColor}
-            title="Choose category color"
+          <CategoryColorField
+            color={draftColor}
+            helperText="Pick a color accent for this category."
+            onPress={() => openColorPicker("create")}
           />
+          <View style={styles.colorPreviewRow}>
+            <View style={[styles.dotLarge, { backgroundColor: draftColor }]} />
+            <AppText color="mutedText" variant="bodyMd">
+              Selected color {draftColor.toUpperCase()}
+            </AppText>
+          </View>
+          {error ? (
+            <AppText color="error" variant="bodyMd">
+              {error}
+            </AppText>
+          ) : null}
           <AppButton
             loading={busy === "create"}
             onPress={() => void handleCreate()}
@@ -157,13 +239,17 @@ export default function SettingsCategoriesScreen() {
                           onChangeText={setEditingLabel}
                           value={editingLabel}
                         />
-                        <OptionSelectField
-                          label="Color"
-                          onSelect={setEditingColor}
-                          options={colorOptions}
-                          selectedValue={editingColor}
-                          title="Update category color"
+                        <CategoryColorField
+                          color={editingColor}
+                          helperText="Choose a new color accent."
+                          onPress={() => openColorPicker("edit")}
                         />
+                        <View style={styles.colorPreviewRow}>
+                          <View style={[styles.dotLarge, { backgroundColor: editingColor }]} />
+                          <AppText color="mutedText" variant="bodyMd">
+                            Selected color {editingColor.toUpperCase()}
+                          </AppText>
+                        </View>
                         <View style={styles.actionsRow}>
                           <AppButton
                             onPress={() => {
@@ -251,7 +337,122 @@ export default function SettingsCategoriesScreen() {
         title="Delete category"
         visible={Boolean(pendingDelete)}
       />
+
+      <BottomSheetModal
+        ref={colorPickerModalRef}
+        backdropComponent={renderColorPickerBackdrop}
+        backgroundStyle={{ backgroundColor: theme.colors.surfaceContainerLowest }}
+        enableDynamicSizing={false}
+        enableDismissOnClose
+        handleIndicatorStyle={{ backgroundColor: theme.colors.outline }}
+        onDismiss={() => setColorPickerTarget(null)}
+        snapPoints={["82%"]}
+      >
+        <BottomSheetFlatList
+          contentContainerStyle={styles.pickerListContent}
+          data={colorOptions}
+          keyExtractor={(item) => item.value}
+          ListHeaderComponent={
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetCopy}>
+                <AppText style={styles.sheetTitle} variant="titleMd">
+                  {activeColorTitle}
+                </AppText>
+                <AppText color="mutedText" style={styles.sheetSubtitle} variant="bodyMd">
+                  Choose a color accent from the full palette.
+                </AppText>
+              </View>
+              <AppPressable onPress={closeColorPicker} style={styles.closeButton}>
+                <Feather color={theme.colors.mutedText} name="x" size={18} />
+              </AppPressable>
+            </View>
+          }
+          ListFooterComponent={
+            <View style={styles.footer}>
+              <AppButton onPress={closeColorPicker} title="Close" variant="secondary" />
+            </View>
+          }
+          renderItem={({ item }) => {
+            const isSelected = item.value === activeColorValue;
+
+            return (
+              <AppPressable
+                onPress={() => handleColorSelect(item.value)}
+                style={[
+                  styles.optionRow,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.colors.primaryContainer
+                      : theme.colors.surfaceContainerLow,
+                    borderColor: isSelected
+                      ? theme.colors.primary
+                      : theme.colors.outlineVariant,
+                  },
+                ]}
+              >
+                <View style={styles.optionCopy}>
+                  <View style={styles.optionLabelRow}>
+                    <View style={[styles.dot, { backgroundColor: item.value }]} />
+                    <AppText style={styles.optionLabel} variant="bodyMd">
+                      {item.label}
+                    </AppText>
+                  </View>
+                </View>
+                {isSelected ? (
+                  <Feather color={theme.colors.primary} name="check" size={18} />
+                ) : null}
+              </AppPressable>
+            );
+          }}
+          ItemSeparatorComponent={() => <View style={styles.pickerSeparator} />}
+          showsVerticalScrollIndicator={false}
+          style={styles.pickerList}
+        />
+      </BottomSheetModal>
     </>
+  );
+}
+
+function CategoryColorField({
+  color,
+  helperText,
+  onPress,
+}: {
+  color: string;
+  helperText: string;
+  onPress: () => void;
+}) {
+  const theme = useAppTheme();
+
+  return (
+    <View style={styles.fieldWrap}>
+      <AppText style={styles.fieldLabel} variant="labelMd">
+        Color
+      </AppText>
+      <AppPressable
+        onPress={onPress}
+        style={[
+          styles.field,
+          {
+            backgroundColor: theme.colors.surfaceContainerLow,
+            borderColor: theme.colors.outlineVariant,
+          },
+        ]}
+      >
+        <View style={styles.fieldValueRow}>
+          <View style={[styles.dot, { backgroundColor: color }]} />
+          <View style={styles.fieldCopy}>
+            <AppText style={styles.fieldValue} variant="bodyMd">
+              {color.toUpperCase()}
+            </AppText>
+            <AppText color="mutedText" style={styles.helperText} variant="bodyMd">
+              {helperText}
+            </AppText>
+          </View>
+        </View>
+        <Feather color={theme.colors.mutedText} name="chevron-down" size={18} />
+      </AppPressable>
+    </View>
   );
 }
 
@@ -291,22 +492,114 @@ const styles = StyleSheet.create({
     height: Sizes.sm,
     width: Sizes.sm,
   },
-  header: {
+  dotLarge: {
+    borderRadius: Radii.full,
+    height: Sizes.lg,
+    width: Sizes.lg,
+  },
+  colorPreviewRow: {
+    alignItems: "center",
+    flexDirection: "row",
     gap: Spacing.sm,
   },
-  overline: {
-    fontFamily: font.bold,
-    fontSize: FontSizes.xs,
-    letterSpacing: 1.2,
-    lineHeight: LineHeights.xs,
+  closeButton: {
+    padding: Spacing.sm,
   },
   section: {
     gap: Spacing.md,
   },
+  field: {
+    alignItems: "center",
+    borderRadius: Radii.lg,
+    borderWidth: Sizes.hairline,
+    flexDirection: "row",
+    gap: Spacing.md,
+    justifyContent: "space-between",
+    minHeight: Sizes["11xl"],
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  fieldCopy: {
+    flex: 1,
+    gap: Sizes.xs,
+    minWidth: 0,
+  },
+  fieldLabel: {
+    fontFamily: font.semiBold,
+  },
+  fieldValue: {
+    lineHeight: LineHeights.md,
+  },
+  fieldValueRow: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  fieldWrap: {
+    gap: Spacing.sm,
+  },
+  footer: {
+    gap: Spacing.md,
+    paddingBottom: Spacing.xl,
+    paddingTop: Spacing.lg,
+  },
+  helperText: {
+    fontSize: FontSizes.sm,
+    lineHeight: LineHeights.sm,
+  },
+  optionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  optionLabel: {
+    fontFamily: font.medium,
+  },
+  optionLabelRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  optionRow: {
+    alignItems: "center",
+    borderRadius: Radii.lg,
+    borderWidth: Sizes.hairline,
+    flexDirection: "row",
+    gap: Spacing.md,
+    minHeight: Sizes["10xl"],
+    paddingHorizontal: Spacing.md + Spacing.xs,
+    paddingVertical: Spacing.sm + Sizes.xs / 2,
+  },
+  pickerList: {
+    flex: 1,
+  },
+  pickerListContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
+    paddingTop: Sizes.xs,
+  },
+  pickerSeparator: {
+    height: Spacing.xs + Sizes.xs / 2,
+  },
   separator: {
     height: Spacing.md,
   },
-  title: {
-    fontFamily: font.headerBold,
+  sheetCopy: {
+    flex: 1,
+    gap: Sizes.xs,
+  },
+  sheetHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.md,
+    justifyContent: "space-between",
+    paddingBottom: Spacing.lg,
+  },
+  sheetSubtitle: {
+    fontSize: FontSizes.md,
+    lineHeight: LineHeights.md,
+  },
+  sheetTitle: {
+    fontFamily: font.headerSemiBold,
   },
 });

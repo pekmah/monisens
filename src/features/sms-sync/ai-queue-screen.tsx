@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
-import { AppButton, AppFlashList, AppText, Screen } from "@/components/base";
+import { AppButton, AppFlashList, AppText, NestedScreenHeader, Screen } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -16,17 +16,11 @@ export default function AiQueueScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <Screen contentContainerStyle={styles.content} scroll>
-        <View style={styles.header}>
-          <AppText color="primary" style={styles.overline} variant="labelMd">
-            AI QUEUE
-          </AppText>
-          <AppText style={styles.title} variant="headlineSm">
-            AI classification jobs
-          </AppText>
-          <AppText color="mutedText" variant="bodyMd">
-            Local jobs stay in SQLite and retry when the AI backend becomes reachable again.
-          </AppText>
-        </View>
+        <NestedScreenHeader
+          description="Local jobs stay in SQLite and retry when the AI backend becomes reachable again."
+          overline="AI QUEUE"
+          title="AI classification jobs"
+        />
 
         <View
           style={[
@@ -243,9 +237,6 @@ const styles = StyleSheet.create({
   content: {
     gap: Spacing.lg,
     paddingBottom: Sizes["15xl"],
-  },
-  header: {
-    gap: Spacing.sm,
   },
   metric: {
     borderRadius: Radii.md,

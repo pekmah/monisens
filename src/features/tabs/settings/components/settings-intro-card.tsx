@@ -13,9 +13,9 @@ export function SettingsIntroCard() {
       <AppText style={styles.title} variant="headlineSm">
         Settings & Privacy
       </AppText>
-      <AppText color="mutedText" style={styles.description} variant="bodyMd">
+      {/* <AppText color="mutedText" style={styles.description} variant="bodyMd">
         Tailor your intelligence experience and manage your financial data footprint.
-      </AppText>
+      </AppText> */}
     </View>
   );
 }

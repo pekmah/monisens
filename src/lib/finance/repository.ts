@@ -1,7 +1,12 @@
-import { DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE } from "@/lib/ai/constants";
 import { getAiSnapshot } from "@/lib/ai/repository";
 import { normalizeMerchantKey } from "@/lib/ai/utils";
-import { DEFAULT_FINANCE_CATEGORIES, DEFAULT_SYNC_SCOPE, DEFAULT_USER_ID } from "@/lib/finance/constants";
+import {
+  DEFAULT_FINANCE_CATEGORIES,
+  DEFAULT_SMS_IMPORT_LIMIT,
+  DEFAULT_SMS_SOURCE_PROFILES,
+  DEFAULT_SYNC_SCOPE,
+  DEFAULT_USER_ID,
+} from "@/lib/finance/constants";
 import { sqliteDatabase } from "@/lib/finance/database";
 import type {
   AttachmentRecord,
@@ -20,7 +25,15 @@ import type {
   OutboxOperation,
   OutboxStatus,
   ParsedSmsCandidate,
+  IgnoredSmsMessageRecord,
   SpendingAlertRecord,
+  SmsSourceAction,
+  SmsSourceMatcherRecord,
+  SmsSourceMatchField,
+  SmsSourceMatchType,
+  SmsSourceParserKey,
+  SmsSourceProfileGroup,
+  SmsSourceProfileRecord,
   SyncEntityType,
   SmsImportResult,
   SmsMessageRecord,
@@ -94,6 +107,7 @@ export function ensureSyncStateRow() {
 }
 
 export function ensureSmsSyncStateRow() {
+  ensureSmsSyncStateColumns();
   const existing = sqliteDatabase.getFirstSync<{ scope: string }>(
     "SELECT scope FROM sms_sync_state WHERE scope = 'default'",
   );
@@ -103,16 +117,115 @@ export function ensureSmsSyncStateRow() {
       `INSERT INTO sms_sync_state (
         scope,
         listener_enabled,
+        import_limit,
         last_imported_at,
         last_import_count,
         last_listener_event_at,
         last_error
-      ) VALUES ('default', 0, NULL, NULL, NULL, NULL)`,
+      ) VALUES ('default', 0, ?, NULL, NULL, NULL, NULL)`,
+      [DEFAULT_SMS_IMPORT_LIMIT],
     );
   }
 }
 
 let smsCandidateColumnsEnsured = false;
+let smsMessageSourceColumnsEnsured = false;
+let smsSyncStateColumnsEnsured = false;
+let smsSourceTablesEnsured = false;
+
+function ensureSmsSyncStateColumns() {
+  if (smsSyncStateColumnsEnsured) {
+    return;
+  }
+
+  const columns = sqliteDatabase.getAllSync<{ name: string }>(
+    "PRAGMA table_info(sms_sync_state)",
+  );
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has("import_limit")) {
+    sqliteDatabase.execSync(
+      `ALTER TABLE sms_sync_state
+       ADD COLUMN import_limit INTEGER NOT NULL DEFAULT ${DEFAULT_SMS_IMPORT_LIMIT}`,
+    );
+  }
+
+  smsSyncStateColumnsEnsured = true;
+}
+
+function ensureSmsMessageSourceColumns() {
+  if (smsMessageSourceColumnsEnsured) {
+    return;
+  }
+
+  const columns = sqliteDatabase.getAllSync<{ name: string }>(
+    "PRAGMA table_info(sms_messages)",
+  );
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has("source_profile_id")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_messages ADD COLUMN source_profile_id TEXT",
+    );
+  }
+
+  if (!columnNames.has("source_action")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_messages ADD COLUMN source_action TEXT",
+    );
+  }
+
+  if (!columnNames.has("match_score")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_messages ADD COLUMN match_score INTEGER",
+    );
+  }
+
+  sqliteDatabase.execSync(`
+    CREATE INDEX IF NOT EXISTS sms_messages_source_profile_idx
+      ON sms_messages(source_profile_id, received_at DESC);
+  `);
+
+  smsMessageSourceColumnsEnsured = true;
+}
+
+function ensureSmsSourceTables() {
+  if (smsSourceTablesEnsured) {
+    return;
+  }
+
+  sqliteDatabase.execSync(`
+    CREATE TABLE IF NOT EXISTS sms_source_profiles (
+      id TEXT PRIMARY KEY NOT NULL,
+      label TEXT NOT NULL,
+      description TEXT,
+      parser_key TEXT NOT NULL,
+      action TEXT NOT NULL,
+      enabled INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS sms_source_profiles_sort_idx
+      ON sms_source_profiles(enabled, sort_order);
+
+    CREATE TABLE IF NOT EXISTS sms_source_matchers (
+      id TEXT PRIMARY KEY NOT NULL,
+      profile_id TEXT NOT NULL,
+      field TEXT NOT NULL,
+      match_type TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      case_sensitive INTEGER NOT NULL,
+      enabled INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS sms_source_matchers_profile_idx
+      ON sms_source_matchers(profile_id, enabled);
+  `);
+
+  smsSourceTablesEnsured = true;
+}
 
 function ensureSmsCandidateAiColumns() {
   if (smsCandidateColumnsEnsured) {
@@ -217,6 +330,59 @@ export function ensureDefaultCategories() {
           now,
         ],
       );
+    }
+  });
+}
+
+export function ensureDefaultSmsSourceProfiles() {
+  ensureSmsSourceTables();
+  const existingCount =
+    sqliteDatabase.getFirstSync<{ count: number }>(
+      `SELECT COUNT(*) AS count
+       FROM sms_source_profiles`,
+    )?.count ?? 0;
+
+  if (existingCount > 0) {
+    return;
+  }
+
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    for (const profile of DEFAULT_SMS_SOURCE_PROFILES) {
+      sqliteDatabase.runSync(
+        `INSERT INTO sms_source_profiles (
+          id, label, description, parser_key, action, enabled, sort_order, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+        [
+          profile.id,
+          profile.label,
+          profile.description,
+          profile.parserKey,
+          profile.action,
+          profile.sortOrder,
+          now,
+          now,
+        ],
+      );
+
+      for (const matcher of profile.matchers) {
+        sqliteDatabase.runSync(
+          `INSERT INTO sms_source_matchers (
+            id, profile_id, field, match_type, pattern, case_sensitive, enabled, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          [
+            matcher.id,
+            profile.id,
+            matcher.field,
+            matcher.matchType,
+            matcher.pattern,
+            matcher.caseSensitive ? 1 : 0,
+            now,
+            now,
+          ],
+        );
+      }
     }
   });
 }
@@ -393,6 +559,312 @@ export function listCategories(): CategoryRecord[] {
     ...row,
     isDefault: Boolean((row as CategoryRecord & { isDefault: number | boolean }).isDefault),
   }));
+}
+
+export function listSmsSourceProfiles(): SmsSourceProfileRecord[] {
+  ensureSmsSourceTables();
+  const profiles = sqliteDatabase.getAllSync<{
+    action: SmsSourceAction;
+    description: string | null;
+    enabled: number;
+    id: string;
+    label: string;
+    matcherCount: number;
+    parserKey: SmsSourceParserKey;
+    sortOrder: number;
+    updatedAt: number;
+  }>(
+    `SELECT
+      p.id,
+      p.label,
+      p.description,
+      p.parser_key AS parserKey,
+      p.action AS action,
+      p.enabled AS enabled,
+      p.sort_order AS sortOrder,
+      p.updated_at AS updatedAt,
+      (
+        SELECT COUNT(*)
+        FROM sms_source_matchers m
+        WHERE m.profile_id = p.id
+          AND m.enabled = 1
+      ) AS matcherCount
+     FROM sms_source_profiles p
+     ORDER BY p.enabled DESC, p.sort_order ASC, p.label ASC`,
+  );
+
+  const matchers = sqliteDatabase.getAllSync<{
+    caseSensitive: number;
+    createdAt: number;
+    enabled: number;
+    field: SmsSourceMatchField;
+    id: string;
+    matchType: SmsSourceMatchType;
+    pattern: string;
+    profileId: string;
+    updatedAt: number;
+  }>(
+    `SELECT
+      id,
+      profile_id AS profileId,
+      field,
+      match_type AS matchType,
+      pattern,
+      case_sensitive AS caseSensitive,
+      enabled,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+     FROM sms_source_matchers
+     ORDER BY created_at ASC`,
+  );
+
+  const matchersByProfile = new Map<string, SmsSourceMatcherRecord[]>();
+  for (const matcher of matchers) {
+    const current = matchersByProfile.get(matcher.profileId) ?? [];
+    current.push({
+      ...matcher,
+      caseSensitive: Boolean(matcher.caseSensitive),
+      enabled: Boolean(matcher.enabled),
+    });
+    matchersByProfile.set(matcher.profileId, current);
+  }
+
+  return profiles.map((profile) => ({
+    ...profile,
+    enabled: Boolean(profile.enabled),
+    matchers: matchersByProfile.get(profile.id) ?? [],
+  }));
+}
+
+export function getSmsSourceProfileGroups(): SmsSourceProfileGroup {
+  const profiles = listSmsSourceProfiles();
+  return {
+    disabled: profiles.filter((profile) => !profile.enabled),
+    exclusions: profiles.filter(
+      (profile) => profile.enabled && profile.action === "exclude",
+    ),
+    processing: profiles.filter(
+      (profile) => profile.enabled && profile.action === "process",
+    ),
+  };
+}
+
+export function listIgnoredSmsMessages(limit = 100): IgnoredSmsMessageRecord[] {
+  ensureSmsMessageSourceColumns();
+  ensureSmsSourceTables();
+  return sqliteDatabase.getAllSync<IgnoredSmsMessageRecord>(
+    `SELECT
+      m.id,
+      m.sender,
+      m.body,
+      m.received_at AS receivedAt,
+      m.parser_key AS parserKey,
+      m.parse_status AS parseStatus,
+      m.source_profile_id AS sourceProfileId,
+      m.source_action AS sourceAction,
+      m.match_score AS matchScore,
+      p.label AS sourceProfileLabel
+     FROM sms_messages m
+     LEFT JOIN sms_source_profiles p
+       ON p.id = m.source_profile_id
+     WHERE m.parse_status = 'ignored'
+     ORDER BY m.received_at DESC
+     LIMIT ?`,
+    [Math.max(limit, 1)],
+  );
+}
+
+export function createSmsSourceProfile(input: {
+  action: SmsSourceAction;
+  description?: string | null;
+  enabled: boolean;
+  label: string;
+  matchers: Array<{
+    caseSensitive: boolean;
+    enabled: boolean;
+    field: SmsSourceMatchField;
+    matchType: SmsSourceMatchType;
+    pattern: string;
+  }>;
+  parserKey: SmsSourceParserKey;
+}): string {
+  ensureSmsSourceTables();
+  const now = Date.now();
+  const id = createId("sms-source");
+  const nextSortOrder =
+    (sqliteDatabase.getFirstSync<{ value: number }>(
+      `SELECT COALESCE(MAX(sort_order), 0) + 100 AS value
+       FROM sms_source_profiles`,
+    )?.value ?? 100);
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `INSERT INTO sms_source_profiles (
+        id, label, description, parser_key, action, enabled, sort_order, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.label.trim(),
+        input.description?.trim() || null,
+        input.parserKey,
+        input.action,
+        input.enabled ? 1 : 0,
+        nextSortOrder,
+        now,
+        now,
+      ],
+    );
+
+    for (const matcher of input.matchers) {
+      sqliteDatabase.runSync(
+        `INSERT INTO sms_source_matchers (
+          id, profile_id, field, match_type, pattern, case_sensitive, enabled, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          createId("sms-source-matcher"),
+          id,
+          matcher.field,
+          matcher.matchType,
+          matcher.pattern.trim(),
+          matcher.caseSensitive ? 1 : 0,
+          matcher.enabled ? 1 : 0,
+          now,
+          now,
+        ],
+      );
+    }
+  });
+
+  return id;
+}
+
+export function updateSmsSourceProfile(input: {
+  action: SmsSourceAction;
+  description?: string | null;
+  enabled: boolean;
+  id: string;
+  label: string;
+  matchers: Array<{
+    caseSensitive: boolean;
+    enabled: boolean;
+    field: SmsSourceMatchField;
+    id?: string;
+    matchType: SmsSourceMatchType;
+    pattern: string;
+  }>;
+  parserKey: SmsSourceParserKey;
+  sortOrder: number;
+}) {
+  ensureSmsSourceTables();
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE sms_source_profiles
+       SET label = ?,
+           description = ?,
+           parser_key = ?,
+           action = ?,
+           enabled = ?,
+           sort_order = ?,
+           updated_at = ?
+       WHERE id = ?`,
+      [
+        input.label.trim(),
+        input.description?.trim() || null,
+        input.parserKey,
+        input.action,
+        input.enabled ? 1 : 0,
+        input.sortOrder,
+        now,
+        input.id,
+      ],
+    );
+
+    sqliteDatabase.runSync(
+      `DELETE FROM sms_source_matchers
+       WHERE profile_id = ?`,
+      [input.id],
+    );
+
+    for (const matcher of input.matchers) {
+      sqliteDatabase.runSync(
+        `INSERT INTO sms_source_matchers (
+          id, profile_id, field, match_type, pattern, case_sensitive, enabled, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          matcher.id ?? createId("sms-source-matcher"),
+          input.id,
+          matcher.field,
+          matcher.matchType,
+          matcher.pattern.trim(),
+          matcher.caseSensitive ? 1 : 0,
+          matcher.enabled ? 1 : 0,
+          now,
+          now,
+        ],
+      );
+    }
+  });
+}
+
+export function deleteSmsSourceProfile(id: string) {
+  ensureSmsSourceTables();
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `DELETE FROM sms_source_matchers
+       WHERE profile_id = ?`,
+      [id],
+    );
+    sqliteDatabase.runSync(
+      `DELETE FROM sms_source_profiles
+       WHERE id = ?`,
+      [id],
+    );
+  });
+}
+
+export function duplicateSmsSourceProfile(id: string): string {
+  const profile = listSmsSourceProfiles().find((item) => item.id === id);
+  if (!profile) {
+    throw new Error("SMS source profile not found.");
+  }
+
+  return createSmsSourceProfile({
+    action: profile.action,
+    description: profile.description,
+    enabled: false,
+    label: `${profile.label} Copy`,
+    matchers: profile.matchers.map((matcher) => ({
+      caseSensitive: matcher.caseSensitive,
+      enabled: matcher.enabled,
+      field: matcher.field,
+      matchType: matcher.matchType,
+      pattern: matcher.pattern,
+    })),
+    parserKey: profile.parserKey,
+  });
+}
+
+export function reorderSmsSourceProfiles(profileIds: string[]) {
+  ensureSmsSourceTables();
+  const ids = profileIds.filter(Boolean);
+  if (ids.length === 0) {
+    return;
+  }
+
+  const now = Date.now();
+  sqliteDatabase.withTransactionSync(() => {
+    ids.forEach((id, index) => {
+      sqliteDatabase.runSync(
+        `UPDATE sms_source_profiles
+         SET sort_order = ?,
+             updated_at = ?
+         WHERE id = ?`,
+        [(index + 1) * 100, now, id],
+      );
+    });
+  });
 }
 
 export function listPendingSmsCandidatesPage(input: {
@@ -1318,6 +1790,7 @@ export function getSyncSnapshot(args: {
 export function getSmsReviewSnapshot(permissionState: SmsPermissionState): SmsReviewSnapshot {
   ensureSmsSyncStateRow();
   const state = sqliteDatabase.getFirstSync<{
+    importLimit: number | null;
     isListenerEnabled: number;
     lastError: string | null;
     lastImportedAt: number | null;
@@ -1325,6 +1798,7 @@ export function getSmsReviewSnapshot(permissionState: SmsPermissionState): SmsRe
     lastListenerEventAt: number | null;
   }>(
     `SELECT
+      import_limit AS importLimit,
       listener_enabled AS isListenerEnabled,
       last_error AS lastError,
       last_imported_at AS lastImportedAt,
@@ -1360,6 +1834,7 @@ export function getSmsReviewSnapshot(permissionState: SmsPermissionState): SmsRe
   return {
     candidateCount: counts.candidateCount,
     failedCandidateCount: counts.failedCandidateCount,
+    importLimit: state?.importLimit ?? DEFAULT_SMS_IMPORT_LIMIT,
     isListenerEnabled: Boolean(state?.isListenerEnabled),
     processingCandidateCount: counts.processingCandidateCount,
     queuedCandidateCount: counts.queuedCandidateCount,
@@ -1468,24 +1943,31 @@ export function upsertSmsMessage(input: {
   body: string;
   fingerprint: string;
   id: string;
+  matchScore?: number | null;
   metadata?: Record<string, unknown>;
   parseStatus: "matched" | "ignored" | "failed";
   parserKey?: string | null;
   readAt?: number | null;
   receivedAt: number;
   sender: string;
+  sourceAction?: SmsSourceAction | null;
+  sourceProfileId?: string | null;
 }) {
+  ensureSmsMessageSourceColumns();
   const now = Date.now();
   sqliteDatabase.runSync(
     `INSERT INTO sms_messages (
-      id, sender, body, received_at, read_at, fingerprint, parser_key, parse_status, metadata_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, sender, body, received_at, read_at, fingerprint, source_profile_id, source_action, match_score, parser_key, parse_status, metadata_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       sender = excluded.sender,
       body = excluded.body,
       received_at = excluded.received_at,
       read_at = excluded.read_at,
       fingerprint = excluded.fingerprint,
+      source_profile_id = excluded.source_profile_id,
+      source_action = excluded.source_action,
+      match_score = excluded.match_score,
       parser_key = excluded.parser_key,
       parse_status = excluded.parse_status,
       metadata_json = excluded.metadata_json,
@@ -1497,6 +1979,9 @@ export function upsertSmsMessage(input: {
       input.receivedAt,
       input.readAt ?? null,
       input.fingerprint,
+      input.sourceProfileId ?? null,
+      input.sourceAction ?? null,
+      input.matchScore ?? null,
       input.parserKey ?? null,
       input.parseStatus,
       input.metadata ? JSON.stringify(input.metadata) : null,
@@ -1504,6 +1989,36 @@ export function upsertSmsMessage(input: {
       now,
     ],
   );
+}
+
+export function getSmsMessageById(id: string) {
+  ensureSmsMessageSourceColumns();
+  return (
+    sqliteDatabase.getFirstSync<SmsMessageRecord>(
+      `SELECT
+        id,
+        sender,
+        body,
+        received_at AS receivedAt,
+        read_at AS readAt,
+        fingerprint,
+        source_profile_id AS sourceProfileId,
+        source_action AS sourceAction,
+        match_score AS matchScore,
+        parser_key AS parserKey,
+        parse_status AS parseStatus,
+        created_at AS createdAt,
+        updated_at AS updatedAt
+       FROM sms_messages
+       WHERE id = ?
+       LIMIT 1`,
+      [id],
+    ) ?? null
+  );
+}
+
+export function getActiveSmsSourceProfilesForMatching() {
+  return listSmsSourceProfiles().filter((profile) => profile.enabled);
 }
 
 export function upsertSmsCandidate(input: {
@@ -1592,6 +2107,7 @@ export function upsertSmsCandidate(input: {
 }
 
 export function listSmsMessagesForAiParse(messageIds?: string[]) {
+  ensureSmsMessageSourceColumns();
   const ids = messageIds?.filter(Boolean) ?? [];
   if (ids.length === 0) {
     return [] as Array<{
@@ -1617,6 +2133,16 @@ export function listSmsMessagesForAiParse(messageIds?: string[]) {
      FROM sms_messages
      WHERE id IN (${placeholders})`,
     ids,
+  );
+}
+
+export function clearSmsCandidateForMessage(messageId: string) {
+  ensureSmsCandidateAiColumns();
+  sqliteDatabase.runSync(
+    `DELETE FROM sms_transaction_candidates
+     WHERE sms_message_id = ?
+       AND status = 'pending'`,
+    [messageId],
   );
 }
 
@@ -1687,10 +2213,9 @@ export function listSmsCandidateIdsNeedingAi() {
          classification_status IN ('queued', 'failed')
          OR (
            classification_source != 'user'
-           AND (category_id IS NULL OR COALESCE(classification_confidence, confidence) < ?)
+           AND classification_status IN ('not_needed', 'classified')
          )
        )`,
-    [DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE],
   ).map((row) => row.id);
 }
 
@@ -1727,13 +2252,15 @@ export function listSmsMessageIdsForCandidateIds(candidateIds: string[]) {
 }
 
 export function listSmsMessageIdsNeedingAiParse() {
+  ensureSmsMessageSourceColumns();
   return sqliteDatabase.getAllSync<{ id: string }>(
     `SELECT m.id
      FROM sms_messages m
      LEFT JOIN sms_transaction_candidates c
        ON c.sms_message_id = m.id
      WHERE c.id IS NULL
-       AND m.parse_status IN ('ignored', 'failed')
+       AND m.source_action = 'process'
+       AND m.parse_status = 'failed'
      ORDER BY m.received_at DESC`,
   ).map((row) => row.id);
 }
@@ -2070,6 +2597,7 @@ export function serializeTransactionForSync(id: string) {
 }
 
 export function updateSmsSyncState(input: {
+  importLimit?: number;
   isListenerEnabled?: boolean;
   lastError?: string | null;
   lastImportCount?: number | null;
@@ -2078,6 +2606,7 @@ export function updateSmsSyncState(input: {
 }) {
   ensureSmsSyncStateRow();
   const current = sqliteDatabase.getFirstSync<{
+    importLimit: number | null;
     isListenerEnabled: number;
     lastError: string | null;
     lastImportCount: number | null;
@@ -2085,6 +2614,7 @@ export function updateSmsSyncState(input: {
     lastListenerEventAt: number | null;
   }>(
     `SELECT
+      import_limit AS importLimit,
       listener_enabled AS isListenerEnabled,
       last_error AS lastError,
       last_import_count AS lastImportCount,
@@ -2097,6 +2627,7 @@ export function updateSmsSyncState(input: {
   sqliteDatabase.runSync(
     `UPDATE sms_sync_state
      SET listener_enabled = ?,
+         import_limit = ?,
          last_imported_at = ?,
          last_import_count = ?,
          last_listener_event_at = ?,
@@ -2106,6 +2637,9 @@ export function updateSmsSyncState(input: {
       input.isListenerEnabled !== undefined
         ? (input.isListenerEnabled ? 1 : 0)
         : current?.isListenerEnabled ?? 0,
+      input.importLimit !== undefined
+        ? input.importLimit
+        : current?.importLimit ?? DEFAULT_SMS_IMPORT_LIMIT,
       input.lastImportedAt !== undefined ? input.lastImportedAt : current?.lastImportedAt ?? null,
       input.lastImportCount !== undefined ? input.lastImportCount : current?.lastImportCount ?? null,
       input.lastListenerEventAt !== undefined ? input.lastListenerEventAt : current?.lastListenerEventAt ?? null,
@@ -2117,6 +2651,7 @@ export function updateSmsSyncState(input: {
 export function getSmsSyncState() {
   ensureSmsSyncStateRow();
   return sqliteDatabase.getFirstSync<{
+    importLimit: number | null;
     isListenerEnabled: number;
     lastError: string | null;
     lastImportCount: number | null;
@@ -2124,6 +2659,7 @@ export function getSmsSyncState() {
     lastListenerEventAt: number | null;
   }>(
     `SELECT
+      import_limit AS importLimit,
       listener_enabled AS isListenerEnabled,
       last_error AS lastError,
       last_import_count AS lastImportCount,
@@ -2134,15 +2670,31 @@ export function getSmsSyncState() {
   );
 }
 
+export function setSmsImportLimit(limit: number) {
+  const normalizedLimit = Number.isFinite(limit)
+    ? Math.max(1, Math.min(5000, Math.round(limit)))
+    : DEFAULT_SMS_IMPORT_LIMIT;
+
+  updateSmsSyncState({
+    importLimit: normalizedLimit,
+  });
+
+  return normalizedLimit;
+}
+
 export function ingestSmsParseResult(input: {
   body: string;
   deviceMessageId: string;
   fingerprint: string;
+  matchScore?: number | null;
   parsed: ParsedSmsCandidate | null;
   readAt?: number | null;
   receivedAt: number;
   sender: string;
+  sourceAction?: SmsSourceAction | null;
+  sourceProfileId?: string | null;
 }) {
+  ensureSmsMessageSourceColumns();
   const existingMessage = sqliteDatabase.getFirstSync<{ id: string }>(
     `SELECT id
      FROM sms_messages
@@ -2157,18 +2709,21 @@ export function ingestSmsParseResult(input: {
     fingerprint: input.fingerprint,
     id: messageId,
     metadata: input.parsed ?? undefined,
+    matchScore: input.matchScore ?? null,
     parseStatus: input.parsed?.parseStatus ?? "ignored",
     parserKey: input.parsed?.parserKey ?? null,
     readAt: input.readAt ?? null,
     receivedAt: input.receivedAt,
     sender: input.sender,
+    sourceAction: input.sourceAction ?? null,
+    sourceProfileId: input.sourceProfileId ?? null,
   });
 
   if (!input.parsed || input.parsed.parseStatus !== "matched") {
     return;
   }
 
-  const candidate = upsertSmsCandidate({
+  upsertSmsCandidate({
     amountMinor: input.parsed.amountMinor,
     categoryId: input.parsed.categoryId,
     confidence: input.parsed.confidence,
@@ -2182,15 +2737,6 @@ export function ingestSmsParseResult(input: {
     reference: input.parsed.reference,
     smsMessageId: messageId,
   });
-
-  const shouldAutoAccept =
-    candidate.status === "pending" &&
-    Boolean(candidate.categoryId) &&
-    candidate.confidence >= DEFAULT_AI_AUTO_ACCEPT_CONFIDENCE;
-
-  if (shouldAutoAccept) {
-    acceptSmsCandidate(candidate.id);
-  }
 }
 
 export function markSmsCandidateDismissed(id: string) {

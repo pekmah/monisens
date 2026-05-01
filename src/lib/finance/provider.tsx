@@ -15,9 +15,11 @@ import { subscribeToAiQueueUpdates } from "@/lib/ai/events";
 import type {
   CreateTransactionInput,
   FinanceSnapshot,
+  IgnoredSmsMessageRecord,
   SmsCandidatePage,
   SmsImportResult,
   SmsPermissionState,
+  SmsSourceProfileGroup,
   SyncEngineStatus,
   TransactionRecord,
 } from "@/lib/finance/types";
@@ -29,18 +31,25 @@ import {
   connectAiJobStreamUseCase,
   createBudgetUseCase,
   createCategoryUseCase,
+  createSmsSourceProfileUseCase,
   createTransactionUseCase,
   deleteCategoryUseCase,
+  deleteSmsSourceProfileUseCase,
   deleteTransactionUseCase,
   disconnectAiJobStreamUseCase,
   dismissSmsCandidateReviewUseCase,
+  duplicateSmsSourceProfileUseCase,
   getSmsListenerEnabledUseCase,
   getSmsPermissionStatusUseCase,
   handleIncomingSmsUseCase,
   importSmsInboxUseCase,
   loadFinanceSnapshot,
+  loadIgnoredSmsMessagesUseCase,
   loadPendingSmsCandidatesPageUseCase,
+  loadSmsSourceProfileGroupsUseCase,
   loadTransactionByIdUseCase,
+  reorderSmsSourceProfilesUseCase,
+  reprocessIgnoredSmsMessageUseCase,
   rejectCategoryProposalUseCase,
   requestSmsPermissionUseCase,
   retryAiJobUseCase,
@@ -52,6 +61,8 @@ import {
   syncRemoteAiJobsUseCase,
   syncRemoteAiJobUseCase,
   updateCategoryUseCase,
+  updateSmsImportLimitUseCase,
+  updateSmsSourceProfileUseCase,
   updateSmsCandidateCategoryUseCase,
   updateTransactionUseCase,
 } from "@/lib/finance/use-cases";
@@ -61,6 +72,20 @@ const FinanceContext = createContext<{
   acceptSmsCandidate: (id: string) => Promise<string>;
   approveCategoryProposal: (id: string) => Promise<void>;
   createCategory: (input: { color: string; label: string }) => Promise<string>;
+  createSmsSourceProfile: (input: {
+    action: "process" | "exclude";
+    description?: string | null;
+    enabled: boolean;
+    label: string;
+    matchers: Array<{
+      caseSensitive: boolean;
+      enabled: boolean;
+      field: "sender" | "body";
+      matchType: "exact" | "contains" | "regex";
+      pattern: string;
+    }>;
+    parserKey: "mpesa" | "bank-credit-debit" | "none";
+  }) => Promise<string>;
   createBudget: (input: {
     amount: string;
     categoryId: string;
@@ -69,18 +94,24 @@ const FinanceContext = createContext<{
   }) => Promise<string>;
   createTransaction: (input: CreateTransactionInput) => Promise<string>;
   deleteCategory: (id: string) => Promise<void>;
+  deleteSmsSourceProfile: (id: string) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   dismissSmsCandidate: (id: string) => Promise<void>;
+  duplicateSmsSourceProfile: (id: string) => Promise<string>;
   error: string | null;
   importSmsInbox: () => Promise<SmsImportResult>;
+  loadIgnoredSmsMessages: (limit?: number) => Promise<IgnoredSmsMessageRecord[]>;
   loadPendingSmsCandidatesPage: (input: {
     limit: number;
     offset: number;
   }) => Promise<SmsCandidatePage>;
+  loadSmsSourceProfileGroups: () => Promise<SmsSourceProfileGroup>;
   loadTransactionById: (id: string) => Promise<TransactionRecord | null>;
   requestSmsPermission: () => Promise<SmsPermissionState>;
   ready: boolean;
   refresh: (searchText?: string) => Promise<void>;
+  reorderSmsSourceProfiles: (ids: string[]) => Promise<void>;
+  reprocessIgnoredSmsMessage: (messageId: string) => Promise<void>;
   rejectCategoryProposal: (id: string) => Promise<void>;
   retryAiJobs: () => Promise<void>;
   runAiQueue: () => Promise<void>;
@@ -94,10 +125,28 @@ const FinanceContext = createContext<{
     id: string;
     label: string;
   }) => Promise<void>;
+  updateSmsSourceProfile: (input: {
+    action: "process" | "exclude";
+    description?: string | null;
+    enabled: boolean;
+    id: string;
+    label: string;
+    matchers: Array<{
+      caseSensitive: boolean;
+      enabled: boolean;
+      field: "sender" | "body";
+      id?: string;
+      matchType: "exact" | "contains" | "regex";
+      pattern: string;
+    }>;
+    parserKey: "mpesa" | "bank-credit-debit" | "none";
+    sortOrder: number;
+  }) => Promise<void>;
   updateSmsCandidateCategory: (
     id: string,
     categoryId: string | null,
   ) => Promise<void>;
+  updateSmsImportLimit: (limit: number) => Promise<number>;
   updateTransaction: (
     id: string,
     input: Partial<CreateTransactionInput>,
@@ -230,6 +279,28 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     [refresh],
   );
 
+  const createLocalSmsSourceProfile = useCallback(
+    async (input: {
+      action: "process" | "exclude";
+      description?: string | null;
+      enabled: boolean;
+      label: string;
+      matchers: Array<{
+        caseSensitive: boolean;
+        enabled: boolean;
+        field: "sender" | "body";
+        matchType: "exact" | "contains" | "regex";
+        pattern: string;
+      }>;
+      parserKey: "mpesa" | "bank-credit-debit" | "none";
+    }) => {
+      const id = createSmsSourceProfileUseCase(input);
+      await refresh();
+      return id;
+    },
+    [refresh],
+  );
+
   const updateLocalTransaction = useCallback(
     async (id: string, input: Partial<CreateTransactionInput>) => {
       updateTransactionUseCase(id, input);
@@ -302,6 +373,55 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     [refresh],
   );
 
+  const updateLocalSmsSourceProfile = useCallback(
+    async (input: {
+      action: "process" | "exclude";
+      description?: string | null;
+      enabled: boolean;
+      id: string;
+      label: string;
+      matchers: Array<{
+        caseSensitive: boolean;
+        enabled: boolean;
+        field: "sender" | "body";
+        id?: string;
+        matchType: "exact" | "contains" | "regex";
+        pattern: string;
+      }>;
+      parserKey: "mpesa" | "bank-credit-debit" | "none";
+      sortOrder: number;
+    }) => {
+      updateSmsSourceProfileUseCase(input);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const deleteLocalSmsSourceProfile = useCallback(
+    async (id: string) => {
+      deleteSmsSourceProfileUseCase(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const duplicateLocalSmsSourceProfile = useCallback(
+    async (id: string) => {
+      const nextId = duplicateSmsSourceProfileUseCase(id);
+      await refresh();
+      return nextId;
+    },
+    [refresh],
+  );
+
+  const reorderLocalSmsSourceProfiles = useCallback(
+    async (ids: string[]) => {
+      reorderSmsSourceProfilesUseCase(ids);
+      await refresh();
+    },
+    [refresh],
+  );
+
   const requestSmsPermission = useCallback(async () => {
     const result = await requestSmsPermissionUseCase();
     setSmsPermissionState(result);
@@ -311,7 +431,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
   const importSmsInbox = useCallback(async () => {
     try {
-      const result = await importSmsInboxUseCase(10);
+      const result = await importSmsInboxUseCase();
       if (onlineRef.current) {
         await runAiJobQueueUseCase();
       }
@@ -337,6 +457,25 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const loadTransactionById = useCallback(
     async (id: string) => loadTransactionByIdUseCase(id),
     [],
+  );
+
+  const loadSmsSourceProfileGroups = useCallback(
+    async () => loadSmsSourceProfileGroupsUseCase(),
+    [],
+  );
+
+  const loadIgnoredSmsMessages = useCallback(
+    async (limit = 100) => loadIgnoredSmsMessagesUseCase(limit),
+    [],
+  );
+
+  const updateSmsImportLimit = useCallback(
+    async (limit: number) => {
+      const nextLimit = updateSmsImportLimitUseCase(limit);
+      await refresh();
+      return nextLimit;
+    },
+    [refresh],
   );
 
   const setSmsListenerEnabled = useCallback(
@@ -428,6 +567,18 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     await runAiJobQueueUseCase();
     await refresh();
   }, [refresh]);
+
+  const reprocessIgnoredSmsMessage = useCallback(
+    async (messageId: string) => {
+      reprocessIgnoredSmsMessageUseCase(messageId);
+      await refresh();
+      if (onlineRef.current) {
+        await runAiJobQueueUseCase();
+        await refresh();
+      }
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     try {
@@ -596,18 +747,25 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       acceptSmsCandidate,
       approveCategoryProposal,
       createCategory: createLocalCategory,
+      createSmsSourceProfile: createLocalSmsSourceProfile,
       createBudget: createLocalBudget,
       createTransaction: createLocalTransaction,
       deleteCategory: deleteLocalCategory,
+      deleteSmsSourceProfile: deleteLocalSmsSourceProfile,
       deleteTransaction: deleteLocalTransaction,
       dismissSmsCandidate,
+      duplicateSmsSourceProfile: duplicateLocalSmsSourceProfile,
       error,
       importSmsInbox,
+      loadIgnoredSmsMessages,
+      loadSmsSourceProfileGroups,
       loadTransactionById,
       loadPendingSmsCandidatesPage,
       requestSmsPermission,
       ready,
       refresh,
+      reorderSmsSourceProfiles: reorderLocalSmsSourceProfiles,
+      reprocessIgnoredSmsMessage,
       rejectCategoryProposal,
       retryAiJobs,
       runAiQueue,
@@ -617,6 +775,8 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       snapshot,
       syncNow,
       updateCategory: updateLocalCategory,
+      updateSmsImportLimit,
+      updateSmsSourceProfile: updateLocalSmsSourceProfile,
       updateSmsCandidateCategory: updateCandidateCategory,
       updateTransaction: updateLocalTransaction,
     }),
@@ -624,18 +784,25 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       acceptSmsCandidate,
       approveCategoryProposal,
       createLocalCategory,
+      createLocalSmsSourceProfile,
       createLocalBudget,
       createLocalTransaction,
       deleteLocalCategory,
+      deleteLocalSmsSourceProfile,
       deleteLocalTransaction,
       dismissSmsCandidate,
+      duplicateLocalSmsSourceProfile,
       error,
       importSmsInbox,
+      loadIgnoredSmsMessages,
+      loadSmsSourceProfileGroups,
       loadTransactionById,
       loadPendingSmsCandidatesPage,
       requestSmsPermission,
       ready,
       refresh,
+      reorderLocalSmsSourceProfiles,
+      reprocessIgnoredSmsMessage,
       rejectCategoryProposal,
       retryAiJobs,
       runAiQueue,
@@ -644,6 +811,8 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       snapshot,
       syncNow,
       updateLocalCategory,
+      updateSmsImportLimit,
+      updateLocalSmsSourceProfile,
       updateCandidateCategory,
       updateLocalTransaction,
     ],

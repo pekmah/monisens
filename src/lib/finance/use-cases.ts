@@ -15,23 +15,33 @@ import {
   retryFailedAiJobs,
   upsertMerchantMemory,
 } from "@/lib/ai/repository";
-import { DEFAULT_USER_ID } from "@/lib/finance/constants";
+import { DEFAULT_SMS_IMPORT_LIMIT, DEFAULT_USER_ID } from "@/lib/finance/constants";
 import { applyFinanceMigrations } from "@/lib/finance/migrations";
 import {
   ensureSmsSyncStateRow,
   approvePendingCategoryProposal,
+  createSmsSourceProfile,
   createCategory,
+  duplicateSmsSourceProfile,
   getSmsCandidateFeedbackContext,
   createBudget,
   createTransaction,
+  deleteSmsSourceProfile,
   ensureDefaultCategories,
+  ensureDefaultSmsSourceProfiles,
   ensureSyncStateRow,
   deleteCategory,
   getFinanceSnapshot,
+  getSmsSyncState,
+  getSmsSourceProfileGroups,
   getTransactionById,
+  listIgnoredSmsMessages,
   listPendingSmsCandidatesPage,
   softDeleteTransaction,
+  reorderSmsSourceProfiles,
+  setSmsImportLimit,
   updateCategory,
+  updateSmsSourceProfile,
   updateSmsCandidateCategory,
   updateTransaction,
 } from "@/lib/finance/repository";
@@ -53,6 +63,7 @@ import {
   stopSmsListening,
   type NativeSmsMessage,
 } from "@/lib/sms-native";
+import { reprocessSmsMessageById } from "@/lib/sms-source";
 import {
   acceptSmsCandidateUseCase,
   dismissSmsCandidateUseCase,
@@ -66,6 +77,7 @@ import {
 export function bootstrapFinanceStore() {
   applyFinanceMigrations();
   ensureDefaultCategories();
+  ensureDefaultSmsSourceProfiles();
   ensureSyncStateRow();
   ensureSmsSyncStateRow();
 }
@@ -148,11 +160,19 @@ export async function requestSmsPermissionUseCase() {
   return requestSmsPermission();
 }
 
-export async function importSmsInboxUseCase(limit = 250) {
-  const messages = await readSmsInbox(limit, null);
+export async function importSmsInboxUseCase(limit?: number) {
+  const resolvedLimit =
+    limit ??
+    getSmsSyncState()?.importLimit ??
+    DEFAULT_SMS_IMPORT_LIMIT;
+  const messages = await readSmsInbox(resolvedLimit, null);
   const result = await importSmsMessages(messages);
   enqueuePendingSmsAiJobs(messages.length > 1 ? "import_batch" : "sms_single");
   return result;
+}
+
+export function updateSmsImportLimitUseCase(limit: number) {
+  return setSmsImportLimit(limit);
 }
 
 export async function startSmsListenerUseCase() {
@@ -233,6 +253,67 @@ export function updateSmsCandidateCategoryUseCase(id: string, categoryId: string
     candidateId: id,
     categoryId,
   });
+}
+
+export function loadSmsSourceProfileGroupsUseCase() {
+  return getSmsSourceProfileGroups();
+}
+
+export function createSmsSourceProfileUseCase(input: {
+  action: "process" | "exclude";
+  description?: string | null;
+  enabled: boolean;
+  label: string;
+  matchers: Array<{
+    caseSensitive: boolean;
+    enabled: boolean;
+    field: "sender" | "body";
+    matchType: "exact" | "contains" | "regex";
+    pattern: string;
+  }>;
+  parserKey: "mpesa" | "bank-credit-debit" | "none";
+}) {
+  return createSmsSourceProfile(input);
+}
+
+export function updateSmsSourceProfileUseCase(input: {
+  action: "process" | "exclude";
+  description?: string | null;
+  enabled: boolean;
+  id: string;
+  label: string;
+  matchers: Array<{
+    caseSensitive: boolean;
+    enabled: boolean;
+    field: "sender" | "body";
+    id?: string;
+    matchType: "exact" | "contains" | "regex";
+    pattern: string;
+  }>;
+  parserKey: "mpesa" | "bank-credit-debit" | "none";
+  sortOrder: number;
+}) {
+  updateSmsSourceProfile(input);
+}
+
+export function deleteSmsSourceProfileUseCase(id: string) {
+  deleteSmsSourceProfile(id);
+}
+
+export function duplicateSmsSourceProfileUseCase(id: string) {
+  return duplicateSmsSourceProfile(id);
+}
+
+export function reorderSmsSourceProfilesUseCase(ids: string[]) {
+  reorderSmsSourceProfiles(ids);
+}
+
+export function loadIgnoredSmsMessagesUseCase(limit = 100) {
+  return listIgnoredSmsMessages(limit);
+}
+
+export function reprocessIgnoredSmsMessageUseCase(messageId: string) {
+  reprocessSmsMessageById(messageId);
 }
 
 export function loadPendingSmsCandidatesPageUseCase(input: {

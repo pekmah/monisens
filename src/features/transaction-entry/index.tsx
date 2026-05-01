@@ -5,20 +5,15 @@ import { StyleSheet, View } from "react-native";
 import {
   AppButton,
   AppFlashList,
-  OptionSelectField,
   AppPressable,
+  NestedScreenHeader,
   AppText,
   AppTextInput,
   KeyboardScreen,
+  OptionSelectField,
 } from "@/components/base";
 import { font } from "@/constants/fonts";
-import {
-  FontSizes,
-  LineHeights,
-  Radii,
-  Sizes,
-  Spacing,
-} from "@/constants/theme";
+import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFinance, formatMoney, type TransactionDirection } from "@/lib/finance";
 
@@ -97,35 +92,12 @@ export default function TransactionEntryScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={[styles.header, { backgroundColor: theme.colors.background }]}
-        >
-          <AppPressable
-            onPress={() => router.back()}
-            style={[
-              styles.backButton,
-              { backgroundColor: theme.colors.surfaceContainerLow },
-            ]}
-          >
-            <AppText style={{ color: theme.colors.text }} variant="titleMd">
-              ←
-            </AppText>
-          </AppPressable>
-          <View style={styles.headerCopy}>
-            <AppText color="primary" style={styles.overline} variant="labelMd">
-              TRANSACTION ENTRY
-            </AppText>
-            <AppText style={styles.title} variant="titleMd">
-              New transaction
-            </AppText>
-            <AppText
-              color="mutedText"
-              style={styles.description}
-              variant="bodyMd"
-            >
-              Capture the transaction details and save them to your ledger.
-            </AppText>
-          </View>
+        <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
+          <NestedScreenHeader
+            description="Capture the transaction details and save them to your ledger."
+            overline="TRANSACTION ENTRY"
+            title="New transaction"
+          />
         </View>
 
         <View
@@ -284,13 +256,6 @@ export default function TransactionEntryScreen() {
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    alignItems: "center",
-    borderRadius: Radii.full,
-    height: Sizes["8xl"],
-    justifyContent: "center",
-    width: Sizes["8xl"],
-  },
   card: {
     borderRadius: Radii.xl,
     gap: Spacing.lg,
@@ -300,26 +265,13 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingBottom: Sizes["15xl"],
   },
-  description: {
-    lineHeight: LineHeights.md,
-  },
   form: {
     gap: Spacing.md,
   },
-  header: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  headerCopy: {
-    flex: 1,
-    gap: Sizes.xs,
-  },
+  header: {},
   multilineInput: {
     minHeight: Sizes["15xl"],
     textAlignVertical: "top",
-  },
-  overline: {
-    letterSpacing: 1.1,
   },
   previewAmount: {
     fontFamily: font.headerBold,
@@ -353,8 +305,5 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     textAlign: "center",
-  },
-  title: {
-    fontFamily: font.headerSemiBold,
   },
 });

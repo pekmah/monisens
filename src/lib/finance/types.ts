@@ -49,12 +49,58 @@ export type SmsMessageRecord = {
   createdAt: number;
   fingerprint: string;
   id: string;
+  matchScore: number | null;
   parseStatus: "matched" | "ignored" | "failed";
   parserKey: string | null;
   readAt: number | null;
   receivedAt: number;
   sender: string;
+  sourceAction: SmsSourceAction | null;
+  sourceProfileId: string | null;
   updatedAt: number;
+};
+
+export type SmsSourceParserKey = "mpesa" | "bank-credit-debit" | "none";
+export type SmsSourceAction = "process" | "exclude";
+export type SmsSourceMatchField = "sender" | "body";
+export type SmsSourceMatchType = "exact" | "contains" | "regex";
+
+export type SmsSourceMatcherRecord = {
+  caseSensitive: boolean;
+  createdAt: number;
+  enabled: boolean;
+  field: SmsSourceMatchField;
+  id: string;
+  matchType: SmsSourceMatchType;
+  pattern: string;
+  profileId: string;
+  updatedAt: number;
+};
+
+export type SmsSourceProfileRecord = {
+  action: SmsSourceAction;
+  description: string | null;
+  enabled: boolean;
+  id: string;
+  label: string;
+  matcherCount: number;
+  matchers: SmsSourceMatcherRecord[];
+  parserKey: SmsSourceParserKey;
+  sortOrder: number;
+  updatedAt: number;
+};
+
+export type IgnoredSmsMessageRecord = {
+  body: string;
+  id: string;
+  matchScore: number | null;
+  parseStatus: "ignored" | "failed";
+  parserKey: string | null;
+  receivedAt: number;
+  sender: string;
+  sourceAction: SmsSourceAction | null;
+  sourceProfileId: string | null;
+  sourceProfileLabel: string | null;
 };
 
 export type SmsTransactionCandidateRecord = {
@@ -110,6 +156,7 @@ export type SmsImportResult = {
 export type SmsReviewSnapshot = {
   candidateCount: number;
   failedCandidateCount: number;
+  importLimit: number;
   isListenerEnabled: boolean;
   processingCandidateCount: number;
   queuedCandidateCount: number;
@@ -421,6 +468,12 @@ export type FinanceSnapshot = {
   trajectory: TrajectoryRecord | null;
   transactionSections: TransactionSectionRecord[];
   transactions: TransactionRecord[];
+};
+
+export type SmsSourceProfileGroup = {
+  disabled: SmsSourceProfileRecord[];
+  exclusions: SmsSourceProfileRecord[];
+  processing: SmsSourceProfileRecord[];
 };
 
 export type CreateTransactionInput = {

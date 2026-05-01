@@ -84,6 +84,14 @@ export default function TransactionDetailScreen() {
     }
 
     setBusy(true);
+    setTransaction((current) =>
+      current
+        ? {
+            ...current,
+            categoryId,
+          }
+        : current,
+    );
     await updateTransaction(currentTransaction.id, { categoryId });
     setBusy(false);
     setEditingCategory(false);

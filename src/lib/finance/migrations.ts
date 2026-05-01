@@ -1,4 +1,4 @@
-import { DEFAULT_USER_ID } from "@/lib/finance/constants";
+import { DEFAULT_SMS_IMPORT_LIMIT, DEFAULT_USER_ID } from "@/lib/finance/constants";
 import { sqliteDatabase } from "@/lib/finance/database";
 
 const MIGRATIONS = `
@@ -92,6 +92,9 @@ CREATE TABLE IF NOT EXISTS sms_messages (
   received_at INTEGER NOT NULL,
   read_at INTEGER,
   fingerprint TEXT NOT NULL,
+  source_profile_id TEXT,
+  source_action TEXT,
+  match_score INTEGER,
   parser_key TEXT,
   parse_status TEXT NOT NULL,
   metadata_json TEXT,
@@ -102,6 +105,36 @@ CREATE INDEX IF NOT EXISTS sms_messages_fingerprint_idx
   ON sms_messages(fingerprint);
 CREATE INDEX IF NOT EXISTS sms_messages_received_at_idx
   ON sms_messages(received_at DESC);
+CREATE INDEX IF NOT EXISTS sms_messages_source_profile_idx
+  ON sms_messages(source_profile_id, received_at DESC);
+
+CREATE TABLE IF NOT EXISTS sms_source_profiles (
+  id TEXT PRIMARY KEY NOT NULL,
+  label TEXT NOT NULL,
+  description TEXT,
+  parser_key TEXT NOT NULL,
+  action TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  sort_order INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sms_source_profiles_sort_idx
+  ON sms_source_profiles(enabled, sort_order);
+
+CREATE TABLE IF NOT EXISTS sms_source_matchers (
+  id TEXT PRIMARY KEY NOT NULL,
+  profile_id TEXT NOT NULL,
+  field TEXT NOT NULL,
+  match_type TEXT NOT NULL,
+  pattern TEXT NOT NULL,
+  case_sensitive INTEGER NOT NULL,
+  enabled INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sms_source_matchers_profile_idx
+  ON sms_source_matchers(profile_id, enabled);
 
 CREATE TABLE IF NOT EXISTS sms_transaction_candidates (
   id TEXT PRIMARY KEY NOT NULL,
@@ -139,6 +172,7 @@ CREATE INDEX IF NOT EXISTS sms_candidates_ai_status_idx
 CREATE TABLE IF NOT EXISTS sms_sync_state (
   scope TEXT PRIMARY KEY NOT NULL,
   listener_enabled INTEGER NOT NULL,
+  import_limit INTEGER NOT NULL DEFAULT 250,
   last_imported_at INTEGER,
   last_import_count INTEGER,
   last_listener_event_at INTEGER,
@@ -282,6 +316,8 @@ export function applyFinanceMigrations() {
 
   sqliteDatabase.execSync(MIGRATIONS);
   ensureCategorySyncColumns();
+  ensureSmsSyncStateColumns();
+  ensureSmsMessageSourceColumns();
   ensureSmsCandidateAiColumns();
   sqliteDatabase.execSync(`
     UPDATE sync_outbox
@@ -289,6 +325,50 @@ export function applyFinanceMigrations() {
     WHERE attempt_count IS NULL;
   `);
   migrated = true;
+}
+
+function ensureSmsSyncStateColumns() {
+  const columns = sqliteDatabase.getAllSync<{ name: string }>(
+    "PRAGMA table_info(sms_sync_state)",
+  );
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has("import_limit")) {
+    sqliteDatabase.execSync(
+      `ALTER TABLE sms_sync_state
+       ADD COLUMN import_limit INTEGER NOT NULL DEFAULT ${DEFAULT_SMS_IMPORT_LIMIT}`,
+    );
+  }
+}
+
+function ensureSmsMessageSourceColumns() {
+  const columns = sqliteDatabase.getAllSync<{ name: string }>(
+    "PRAGMA table_info(sms_messages)",
+  );
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has("source_profile_id")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_messages ADD COLUMN source_profile_id TEXT",
+    );
+  }
+
+  if (!columnNames.has("source_action")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_messages ADD COLUMN source_action TEXT",
+    );
+  }
+
+  if (!columnNames.has("match_score")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE sms_messages ADD COLUMN match_score INTEGER",
+    );
+  }
+
+  sqliteDatabase.execSync(`
+    CREATE INDEX IF NOT EXISTS sms_messages_source_profile_idx
+      ON sms_messages(source_profile_id, received_at DESC);
+  `);
 }
 
 function ensureCategorySyncColumns() {

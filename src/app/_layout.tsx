@@ -92,25 +92,57 @@ function RootNavigator() {
                   name="transactions/new"
                   options={{ headerShown: false }}
                 />
-            <Stack.Screen
-              name="transactions/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="sms/review"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="sms/ai"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="settings/categories"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="modal"
-              options={{ presentation: "modal", title: "Modal" }}
+                <Stack.Screen
+                  name="transactions/[id]"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="sms/review"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="sms/ai"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/appearance"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/security"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/categories"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/sms"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/sms-sources"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/sms-source-editor"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/sms-ignored"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/data"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="settings/backups"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="modal"
+                  options={{ presentation: "modal", title: "Modal" }}
                 />
               </Stack>
               <StatusBar style={appTheme.dark ? "light" : "dark"} />

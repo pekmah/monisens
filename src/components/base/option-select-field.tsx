@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
-  BottomSheetFlashList,
+  BottomSheetFlatList,
   BottomSheetModal,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
@@ -45,6 +45,7 @@ export function OptionSelectField({
 }: OptionSelectFieldProps) {
   const theme = useAppTheme();
   const modalRef = useRef<BottomSheetModal>(null);
+  const suppressOpenUntilRef = useRef(0);
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === selectedValue) ?? null,
@@ -62,6 +63,10 @@ export function OptionSelectField({
   }, []);
 
   const handleOpen = useCallback(() => {
+    if (Date.now() < suppressOpenUntilRef.current) {
+      return;
+    }
+
     modalRef.current?.present();
   }, []);
 
@@ -145,10 +150,9 @@ export function OptionSelectField({
           </View>
 
           {options.length ? (
-            <BottomSheetFlashList
+            <BottomSheetFlatList
               contentContainerStyle={styles.listContent}
               data={options}
-              estimatedItemSize={56}
               keyExtractor={(item) => item.value}
               ListFooterComponent={
                 <View style={styles.footer}>
@@ -161,8 +165,11 @@ export function OptionSelectField({
                 return (
                   <AppPressable
                     onPress={() => {
-                      onSelect(item.value);
+                      suppressOpenUntilRef.current = Date.now() + 400;
                       handleClose();
+                      setTimeout(() => {
+                        onSelect(item.value);
+                      }, 0);
                     }}
                     style={[
                       styles.optionRow,
@@ -274,6 +281,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: Spacing.xl,
+    paddingTop: Sizes.xs,
   },
   optionCopy: {
     flex: 1,
@@ -310,6 +318,7 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingBottom: Sizes["4xl"],
     paddingHorizontal: Spacing.xl,
+    minHeight: 0,
   },
   sheetCopy: {
     flex: 1,

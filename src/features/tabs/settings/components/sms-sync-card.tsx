@@ -236,6 +236,9 @@ export function SmsSyncCard() {
                     Last inbox import {formatTimestamp(sms.lastImportedAt)}{sms.lastImportCount ? ` · ${sms.lastImportCount} message(s)` : ""}.
                   </AppText>
                 ) : null}
+                <AppText color="mutedText" style={styles.progressMeta} variant="bodyMd">
+                  Current inbox import limit: {sms?.importLimit ?? 0} message(s).
+                </AppText>
                 {sms?.lastListenerEventAt ? (
                   <AppText color="mutedText" style={styles.progressMeta} variant="bodyMd">
                     Last live SMS received {formatTimestamp(sms.lastListenerEventAt)}.
