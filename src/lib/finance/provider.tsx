@@ -175,11 +175,11 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
       if (onlineRef.current && !remoteAiSyncRef.current) {
         remoteAiSyncRef.current = true;
-        void syncRemoteAiJobsUseCase()
-          .then(() => refresh())
-          .finally(() => {
-            remoteAiSyncRef.current = false;
-          });
+        try {
+          await syncRemoteAiJobsUseCase();
+        } finally {
+          remoteAiSyncRef.current = false;
+        }
       }
 
       const permissionState = await getSmsPermissionStatusUseCase();
