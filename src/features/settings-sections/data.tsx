@@ -4,7 +4,7 @@ import { DataControlsCard } from "@/features/tabs/settings/components";
 export default function DataSettingsScreen() {
   return (
     <SettingsSectionShell
-      description="Track sync health, local-first storage state, and cloud relay activity."
+      description="Track local-first storage state and data controls."
       title="Data Management"
     >
       <DataControlsCard />

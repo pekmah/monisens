@@ -20,14 +20,12 @@ import type {
   SmsImportResult,
   SmsPermissionState,
   SmsSourceProfileGroup,
-  SyncEngineStatus,
   TransactionRecord,
 } from "@/lib/finance/types";
 import {
   acceptSmsCandidateReviewUseCase,
   approveCategoryProposalUseCase,
   bootstrapFinanceStore,
-  canUseRemoteSync,
   connectAiJobStreamUseCase,
   createBudgetUseCase,
   createCategoryUseCase,
@@ -54,7 +52,7 @@ import {
   requestSmsPermissionUseCase,
   retryAiJobUseCase,
   runAiJobQueueUseCase,
-  runFinanceSyncUseCase,
+  seedLocalDemoTransactionsUseCase,
   setSmsSyncErrorUseCase,
   startSmsListenerUseCase,
   stopSmsListenerUseCase,
@@ -116,10 +114,10 @@ const FinanceContext = createContext<{
   retryAiJobs: () => Promise<void>;
   runAiQueue: () => Promise<void>;
   searchText: string;
+  seedDemoTransactions: () => Promise<{ count: number; ids: string[] }>;
   setSmsListenerEnabled: (enabled: boolean) => Promise<void>;
   setSearchText: (value: string) => void;
   snapshot: FinanceSnapshot | null;
-  syncNow: () => Promise<void>;
   updateCategory: (input: {
     color: string;
     id: string;
@@ -160,7 +158,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const [snapshot, setSnapshot] = useState<FinanceSnapshot | null>(null);
   const [smsPermissionState, setSmsPermissionState] =
     useState<SmsPermissionState>("unknown");
-  const [syncStatus, setSyncStatus] = useState<SyncEngineStatus>("idle");
   const onlineRef = useRef(true);
   const readyRef = useRef(false);
   const remoteAiSyncRef = useRef(false);
@@ -178,11 +175,11 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
       if (onlineRef.current && !remoteAiSyncRef.current) {
         remoteAiSyncRef.current = true;
-        try {
-          await syncRemoteAiJobsUseCase();
-        } finally {
-          remoteAiSyncRef.current = false;
-        }
+        void syncRemoteAiJobsUseCase()
+          .then(() => refresh())
+          .finally(() => {
+            remoteAiSyncRef.current = false;
+          });
       }
 
       const permissionState = await getSmsPermissionStatusUseCase();
@@ -191,48 +188,26 @@ export function FinanceProvider({ children }: PropsWithChildren) {
         isOnline: onlineRef.current,
         smsPermissionState: permissionState,
         searchText: nextSearchText ?? searchRef.current,
-        status: syncStatus,
       });
       setSnapshot(nextSnapshot);
     },
-    [syncStatus],
+    [],
   );
-
-  const syncNow = useCallback(async () => {
-    if (!onlineRef.current || !canUseRemoteSync()) {
-      setSyncStatus(!onlineRef.current ? "offline" : "disabled");
-      await refresh();
-      return;
-    }
-
-    setSyncStatus("syncing");
-    await refresh();
-    const result = await runFinanceSyncUseCase("manual");
-    setSyncStatus(result.status);
-    await refresh();
-    setSyncStatus("idle");
-    await refresh();
-  }, [refresh]);
 
   const createLocalTransaction = useCallback(
     async (input: CreateTransactionInput) => {
       const id = createTransactionUseCase(input);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
-
       return id;
     },
     [refresh],
   );
+
+  const seedDemoTransactions = useCallback(async () => {
+    const result = seedLocalDemoTransactionsUseCase();
+    await refresh();
+    return result;
+  }, [refresh]);
 
   const createLocalBudget = useCallback(
     async (input: {
@@ -243,17 +218,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     }) => {
       const id = createBudgetUseCase(input);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
-
       return id;
     },
     [refresh],
@@ -263,17 +227,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     async (input: { color: string; label: string }) => {
       const id = createCategoryUseCase(input);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
-
       return id;
     },
     [refresh],
@@ -305,16 +258,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     async (id: string, input: Partial<CreateTransactionInput>) => {
       updateTransactionUseCase(id, input);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
     },
     [refresh],
   );
@@ -323,16 +266,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     async (id: string) => {
       deleteTransactionUseCase(id);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
     },
     [refresh],
   );
@@ -341,16 +274,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     async (input: { color: string; id: string; label: string }) => {
       updateCategoryUseCase(input);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
     },
     [refresh],
   );
@@ -359,16 +282,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     async (id: string) => {
       deleteCategoryUseCase(id);
       await refresh();
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
     },
     [refresh],
   );
@@ -509,17 +422,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       if (onlineRef.current) {
         await runAiJobQueueUseCase();
       }
-
-      if (onlineRef.current && canUseRemoteSync()) {
-        setSyncStatus("syncing");
-        await refresh();
-        const result = await runFinanceSyncUseCase("write");
-        setSyncStatus(result.status);
-        await refresh();
-        setSyncStatus("idle");
-        await refresh();
-      }
-
       return transactionId;
     },
     [refresh],
@@ -593,7 +495,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
           : "Failed to initialize local finance storage.",
       );
     }
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (!ready) {
@@ -601,7 +503,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     }
 
     void refresh();
-  }, [ready, refresh, searchText, syncStatus, smsPermissionState]);
+  }, [ready, refresh, searchText, smsPermissionState]);
 
   useEffect(() => {
     const unsubscribe = subscribeToAiQueueUpdates(() => {
@@ -610,14 +512,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
 
     return unsubscribe;
   }, [refresh]);
-
-  useEffect(() => {
-    if (!ready || !onlineRef.current || !canUseRemoteSync()) {
-      return;
-    }
-
-    void runFinanceSyncUseCase("launch").then(() => refresh());
-  }, [ready, refresh]);
 
   useEffect(() => {
     if (!ready || !onlineRef.current) {
@@ -666,14 +560,8 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       const isConnected = Boolean(
         state.isConnected && state.isInternetReachable !== false,
       );
-      const wasOnline = onlineRef.current;
       onlineRef.current = isConnected;
-      setSyncStatus(isConnected ? "idle" : "offline");
       void refresh();
-
-      if (isConnected && !wasOnline && canUseRemoteSync()) {
-        void runFinanceSyncUseCase("network_reconnect").then(() => refresh());
-      }
 
       if (isConnected) {
         void runAiJobQueueUseCase().then(() => refresh());
@@ -685,9 +573,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       (state) => {
         if (state === "active") {
           void refresh();
-          if (onlineRef.current && canUseRemoteSync()) {
-            void runFinanceSyncUseCase("resume").then(() => refresh());
-          }
           void runAiJobQueueUseCase().then(() => refresh());
         }
       },
@@ -770,10 +655,10 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       retryAiJobs,
       runAiQueue,
       searchText,
+      seedDemoTransactions,
       setSmsListenerEnabled,
       setSearchText,
       snapshot,
-      syncNow,
       updateCategory: updateLocalCategory,
       updateSmsImportLimit,
       updateSmsSourceProfile: updateLocalSmsSourceProfile,
@@ -807,9 +692,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       retryAiJobs,
       runAiQueue,
       searchText,
+      seedDemoTransactions,
       setSmsListenerEnabled,
       snapshot,
-      syncNow,
       updateLocalCategory,
       updateSmsImportLimit,
       updateLocalSmsSourceProfile,

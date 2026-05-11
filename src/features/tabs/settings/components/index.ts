@@ -11,3 +11,4 @@ export type {
   SettingsRow,
 } from "./settings-group-card";
 export { SettingsIntroCard } from "./settings-intro-card";
+export { UpdateCard } from "./update-card";

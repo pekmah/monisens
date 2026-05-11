@@ -14,6 +14,7 @@ import {
   Manrope_800ExtraBold,
 } from "@expo-google-fonts/manrope";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { HotUpdater } from "@hot-updater/react-native";
 import { ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -28,6 +29,7 @@ import { ToastProvider } from "@/components/toast";
 import { font } from "@/constants/fonts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { FinanceProvider } from "@/lib/finance";
+import { getHotUpdaterOptions, OtaUpdateController } from "@/lib/ota-updates";
 import { getThemes } from "@/lib/theme";
 import { ThemeControllerProvider } from "@/lib/theme-controller";
 
@@ -37,7 +39,7 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     [font.regular]: Inter_400Regular,
     [font.medium]: Inter_500Medium,
@@ -86,65 +88,71 @@ function RootNavigator() {
         <ThemeProvider value={navigationTheme}>
           <BottomSheetModalProvider>
             <ToastProvider>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="transactions/new"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="transactions/[id]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="sms/review"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="sms/ai"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/appearance"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/security"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/categories"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/sms"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/sms-sources"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/sms-source-editor"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/sms-ignored"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/data"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="settings/backups"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="modal"
-                  options={{ presentation: "modal", title: "Modal" }}
-                />
-              </Stack>
+              <OtaUpdateController>
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="transactions/new"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="transactions/[id]"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="sms/review"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="sms/ai"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/appearance"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/security"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/categories"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/sms"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/sms-sources"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/sms-source-editor"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/sms-ignored"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/data"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/updates"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="settings/backups"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="modal"
+                    options={{ presentation: "modal", title: "Modal" }}
+                  />
+                </Stack>
+              </OtaUpdateController>
               <StatusBar style={appTheme.dark ? "light" : "dark"} />
             </ToastProvider>
           </BottomSheetModalProvider>
@@ -153,3 +161,5 @@ function RootNavigator() {
     </GestureHandlerRootView>
   );
 }
+
+export default HotUpdater.wrap(getHotUpdaterOptions())(RootLayout);

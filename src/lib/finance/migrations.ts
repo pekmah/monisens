@@ -237,57 +237,6 @@ CREATE TABLE IF NOT EXISTS merchant_memory (
   updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS sync_metadata (
-  entity_type TEXT NOT NULL,
-  entity_id TEXT NOT NULL,
-  sync_status TEXT NOT NULL,
-  last_synced_at INTEGER,
-  last_error TEXT,
-  conflict_payload_json TEXT,
-  updated_at INTEGER NOT NULL,
-  PRIMARY KEY (entity_type, entity_id)
-);
-
-CREATE TABLE IF NOT EXISTS sync_outbox (
-  id TEXT PRIMARY KEY NOT NULL,
-  entity_type TEXT NOT NULL,
-  entity_id TEXT NOT NULL,
-  operation TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  base_version INTEGER NOT NULL,
-  dedupe_key TEXT NOT NULL,
-  status TEXT NOT NULL,
-  attempt_count INTEGER NOT NULL,
-  next_retry_at INTEGER,
-  last_error TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS sync_outbox_entity_idx
-  ON sync_outbox(entity_type, entity_id);
-
-CREATE TABLE IF NOT EXISTS sync_state (
-  scope TEXT PRIMARY KEY NOT NULL,
-  last_pull_cursor TEXT,
-  last_successful_sync_at INTEGER,
-  last_attempted_sync_at INTEGER,
-  locked_at INTEGER,
-  lock_owner TEXT,
-  last_error TEXT
-);
-
-CREATE TABLE IF NOT EXISTS sync_conflicts (
-  id TEXT PRIMARY KEY NOT NULL,
-  entity_type TEXT NOT NULL,
-  entity_id TEXT NOT NULL,
-  local_payload_json TEXT NOT NULL,
-  remote_payload_json TEXT NOT NULL,
-  base_version INTEGER,
-  server_version INTEGER NOT NULL,
-  status TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS monthly_totals (
   month_key TEXT PRIMARY KEY NOT NULL,
   income_minor INTEGER NOT NULL,
@@ -319,11 +268,6 @@ export function applyFinanceMigrations() {
   ensureSmsSyncStateColumns();
   ensureSmsMessageSourceColumns();
   ensureSmsCandidateAiColumns();
-  sqliteDatabase.execSync(`
-    UPDATE sync_outbox
-    SET attempt_count = COALESCE(attempt_count, 0)
-    WHERE attempt_count IS NULL;
-  `);
   migrated = true;
 }
 

@@ -1,6 +1,6 @@
 import { format, isThisWeek, isToday, isYesterday } from "date-fns";
 
-import type { SyncStatus, TransactionRecord, TransactionSectionItem, TransactionSectionRecord } from "@/lib/finance/types";
+import type { TransactionRecord, TransactionSectionItem, TransactionSectionRecord } from "@/lib/finance/types";
 
 export function createId(prefix = "id") {
   const random = Math.random().toString(36).slice(2, 10);
@@ -65,7 +65,7 @@ export function buildTransactionSections(
         transaction.direction,
       ),
       category: transaction.categoryLabel,
-      hint: getSyncHint(transaction.syncStatus),
+      hint: undefined,
       id: transaction.id,
       time: formatTransactionTime(transaction.transactionAt),
       title: transaction.merchant,
@@ -91,22 +91,6 @@ function getTransactionSectionTitle(timestamp: number) {
   }
 
   return format(timestamp, "MMM d");
-}
-
-function getSyncHint(syncStatus: SyncStatus) {
-  if (syncStatus === "pending") {
-    return "Pending sync";
-  }
-
-  if (syncStatus === "failed") {
-    return "Retry queued";
-  }
-
-  if (syncStatus === "conflict") {
-    return "Needs review";
-  }
-
-  return undefined;
 }
 
 export function accentBackground(color: string) {

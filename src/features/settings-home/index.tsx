@@ -45,10 +45,16 @@ const sections = [
     title: "SMS Ingestion",
   },
   {
-    description: "Sync state, relay health, and local-first storage activity.",
+    description: "Local-first storage activity and data controls.",
     icon: "database",
     route: "/settings/data",
     title: "Data Management",
+  },
+  {
+    description: "Background OTA downloads and last applied update.",
+    icon: "download-cloud",
+    route: "/settings/updates",
+    title: "App Updates",
   },
   {
     description: "Backup and restore controls for this device.",
@@ -63,7 +69,6 @@ export default function SettingsHomeScreen() {
   const { snapshot } = useFinance();
   const smsCount = snapshot?.sms.candidateCount ?? 0;
   const categoryCount = snapshot?.categories.length ?? 0;
-  const unsyncedCount = snapshot?.sync.unsyncedEntityCount ?? 0;
 
   return (
     <TabScreen>
@@ -82,8 +87,6 @@ export default function SettingsHomeScreen() {
                     : section.description
                   : section.title === "Categories"
                     ? `${categoryCount} categories configured`
-                    : section.title === "Data Management" && unsyncedCount > 0
-                      ? `${unsyncedCount} item(s) still need sync`
                       : section.description;
 
               return (

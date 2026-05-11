@@ -29,7 +29,6 @@ import {
   deleteSmsSourceProfile,
   ensureDefaultCategories,
   ensureDefaultSmsSourceProfiles,
-  ensureSyncStateRow,
   deleteCategory,
   getFinanceSnapshot,
   getSmsSyncState,
@@ -37,6 +36,7 @@ import {
   getTransactionById,
   listIgnoredSmsMessages,
   listPendingSmsCandidatesPage,
+  seedLocalDemoTransactions,
   softDeleteTransaction,
   reorderSmsSourceProfiles,
   setSmsImportLimit,
@@ -45,14 +45,12 @@ import {
   updateSmsCandidateCategory,
   updateTransaction,
 } from "@/lib/finance/repository";
-import { hasRemoteSync, runFinanceSync } from "@/lib/finance/sync-engine";
 import type {
   AiSnapshot,
   CreateTransactionInput,
   FinanceSnapshot,
   SmsCandidatePage,
   SmsPermissionState,
-  SyncEngineStatus,
 } from "@/lib/finance/types";
 import {
   ensureSmsListeningPermission,
@@ -78,7 +76,6 @@ export function bootstrapFinanceStore() {
   applyFinanceMigrations();
   ensureDefaultCategories();
   ensureDefaultSmsSourceProfiles();
-  ensureSyncStateRow();
   ensureSmsSyncStateRow();
 }
 
@@ -86,26 +83,17 @@ export function loadFinanceSnapshot(input: {
   isOnline: boolean;
   smsPermissionState: SmsPermissionState;
   searchText?: string;
-  status: SyncEngineStatus;
 }): FinanceSnapshot {
   const aiCapabilities = getAiTransportCapabilities();
   return getFinanceSnapshot({
     aiConfigured: aiCapabilities.isConfigured,
     aiSupportsStreaming: aiCapabilities.supportsStreaming,
-    hasRemote: hasRemoteSync(),
+    hasRemote: false,
     isOnline: input.isOnline,
     smsPermissionState: input.smsPermissionState,
     searchText: input.searchText,
-    status: input.status,
+    status: "idle",
   });
-}
-
-export async function runFinanceSyncUseCase(trigger: "launch" | "manual" | "network_reconnect" | "resume" | "write") {
-  return runFinanceSync(trigger);
-}
-
-export function canUseRemoteSync() {
-  return hasRemoteSync();
 }
 
 export function createBudgetUseCase(input: {
@@ -138,6 +126,10 @@ export function deleteCategoryUseCase(id: string) {
 
 export function createTransactionUseCase(input: CreateTransactionInput) {
   return createTransaction(input);
+}
+
+export function seedLocalDemoTransactionsUseCase() {
+  return seedLocalDemoTransactions();
 }
 
 export function updateTransactionUseCase(id: string, input: Partial<CreateTransactionInput>) {

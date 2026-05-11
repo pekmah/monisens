@@ -35,7 +35,6 @@ import type {
   SmsSourceProfileGroup,
   SmsSourceProfileRecord,
   SyncEntityType,
-  SmsImportResult,
   SmsMessageRecord,
   SmsPermissionState,
   SmsReviewSnapshot,
@@ -388,24 +387,7 @@ export function ensureDefaultSmsSourceProfiles() {
 }
 
 export function writeSyncMetadata(input: MetadataWrite) {
-  sqliteDatabase.runSync(
-    `INSERT INTO sync_metadata (
-      entity_type, entity_id, sync_status, last_synced_at, last_error, conflict_payload_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, NULL, ?)
-    ON CONFLICT(entity_type, entity_id) DO UPDATE SET
-      sync_status = excluded.sync_status,
-      last_synced_at = excluded.last_synced_at,
-      last_error = excluded.last_error,
-      updated_at = excluded.updated_at`,
-    [
-      input.entityType,
-      input.entityId,
-      input.syncStatus,
-      input.lastSyncedAt ?? null,
-      input.lastError ?? null,
-      input.updatedAt,
-    ],
-  );
+  void input;
 }
 
 export function queueOutboxChange(input: {
@@ -415,74 +397,7 @@ export function queueOutboxChange(input: {
   operation: OutboxOperation;
   payload: Record<string, unknown>;
 }) {
-  const now = Date.now();
-  const existing = sqliteDatabase.getFirstSync<OutboxEntry>(
-    `SELECT * FROM sync_outbox
-     WHERE entity_type = ?
-       AND entity_id = ?
-       AND status IN ('pending', 'failed', 'syncing')
-     ORDER BY updated_at DESC
-     LIMIT 1`,
-    [input.entityType, input.entityId],
-  );
-
-  const payloadJson = JSON.stringify(input.payload);
-
-  if (!existing) {
-    sqliteDatabase.runSync(
-      `INSERT INTO sync_outbox (
-        id, entity_type, entity_id, operation, payload_json, base_version,
-        dedupe_key, status, attempt_count, next_retry_at, last_error, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)`,
-      [
-        createId("outbox"),
-        input.entityType,
-        input.entityId,
-        input.operation,
-        payloadJson,
-        input.baseVersion,
-        createId("dedupe"),
-        now,
-        now,
-      ],
-    );
-    return;
-  }
-
-  const nextOperation =
-    existing.operation === "delete" || input.operation === "delete"
-      ? "delete"
-      : "upsert";
-
-  const nextPayload =
-    nextOperation === "delete"
-      ? payloadJson
-      : JSON.stringify({
-          ...safeParseJson<Record<string, unknown>>(existing.payloadJson, {}),
-          ...input.payload,
-        });
-
-  sqliteDatabase.runSync(
-    `UPDATE sync_outbox
-     SET operation = ?,
-         payload_json = ?,
-         base_version = ?,
-         dedupe_key = ?,
-         status = 'pending',
-         attempt_count = 0,
-         next_retry_at = NULL,
-         last_error = NULL,
-         updated_at = ?
-     WHERE id = ?`,
-    [
-      nextOperation,
-      nextPayload,
-      input.baseVersion,
-      createId("dedupe"),
-      now,
-      existing.id,
-    ],
-  );
+  void input;
 }
 
 export function rebuildSummaryTables() {
@@ -946,15 +861,12 @@ export function listTransactions(searchText?: string): TransactionRecord[] {
       t.notes,
       t.reference,
       t.source,
-      COALESCE(sm.sync_status, 'synced') AS syncStatus,
+      'local' AS syncStatus,
       t.transaction_at AS transactionAt,
       t.updated_at AS updatedAt,
       t.version
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
-    LEFT JOIN sync_metadata sm
-      ON sm.entity_type = 'transaction'
-     AND sm.entity_id = t.id
     WHERE t.deleted_at IS NULL
       AND t.user_id = ?
       AND (? = '' OR LOWER(t.merchant) LIKE '%' || LOWER(?) || '%' OR LOWER(COALESCE(t.notes, '')) LIKE '%' || LOWER(?) || '%')
@@ -987,15 +899,12 @@ export function getTransactionById(id: string) {
         t.notes,
         t.reference,
         t.source,
-        COALESCE(sm.sync_status, 'synced') AS syncStatus,
+        'local' AS syncStatus,
         t.transaction_at AS transactionAt,
         t.updated_at AS updatedAt,
         t.version
       FROM transactions t
       LEFT JOIN categories c ON c.id = t.category_id
-      LEFT JOIN sync_metadata sm
-        ON sm.entity_type = 'transaction'
-       AND sm.entity_id = t.id
       WHERE t.id = ?
       LIMIT 1`,
       [id],
@@ -1259,7 +1168,7 @@ export function listBudgets(): BudgetRecord[] {
       b.month_key AS monthKey,
       b.notes,
       COALESCE(cs.amount_minor, 0) AS spentMinor,
-      COALESCE(sm.sync_status, 'synced') AS syncStatus,
+      'local' AS syncStatus,
       b.updated_at AS updatedAt,
       b.version
      FROM budgets b
@@ -1267,9 +1176,6 @@ export function listBudgets(): BudgetRecord[] {
      LEFT JOIN category_summary cs
        ON cs.month_key = b.month_key
       AND cs.category_id = b.category_id
-     LEFT JOIN sync_metadata sm
-       ON sm.entity_type = 'budget'
-      AND sm.entity_id = b.id
      WHERE b.deleted_at IS NULL
        AND b.user_id = ?
        AND b.month_key = ?
@@ -1342,13 +1248,10 @@ export function listImports(): ImportRecord[] {
       imports.row_count AS rowCount,
       imports.source AS source,
       imports.status AS status,
-      COALESCE(sm.sync_status, 'synced') AS syncStatus,
+      'local' AS syncStatus,
       imports.updated_at AS updatedAt,
       imports.version AS version
      FROM imports
-     LEFT JOIN sync_metadata sm
-       ON sm.entity_type = 'import'
-      AND sm.entity_id = imports.id
      WHERE user_id = ?
        AND deleted_at IS NULL
      ORDER BY created_at DESC`,
@@ -1367,13 +1270,10 @@ export function listAttachments(): AttachmentRecord[] {
       attachments.local_uri AS localUri,
       attachments.mime_type AS mimeType,
       attachments.status AS status,
-      COALESCE(sm.sync_status, 'synced') AS syncStatus,
+      'local' AS syncStatus,
       attachments.updated_at AS updatedAt,
       attachments.version AS version
      FROM attachments
-     LEFT JOIN sync_metadata sm
-       ON sm.entity_type = 'attachment'
-      AND sm.entity_id = attachments.id
      WHERE user_id = ?
        AND deleted_at IS NULL
      ORDER BY created_at DESC`,
@@ -1719,71 +1619,20 @@ export function getSyncSnapshot(args: {
   isOnline: boolean;
   status: SyncSnapshot["status"];
 }): SyncSnapshot {
-  const outboxPending =
-    sqliteDatabase.getFirstSync<{ count: number }>(
-      `SELECT COUNT(*) as count
-       FROM sync_outbox
-       WHERE status IN ('pending', 'failed')`,
-    )?.count ?? 0;
-
-  const conflicts =
-    sqliteDatabase.getFirstSync<{ count: number }>(
-      `SELECT COUNT(*) as count
-       FROM sync_conflicts
-       WHERE status = 'open'`,
-    )?.count ?? 0;
-
-  const metadataCounts =
-    sqliteDatabase.getFirstSync<{
-      failedEntityCount: number;
-      syncedEntityCount: number;
-      syncingEntityCount: number;
-      trackedEntityCount: number;
-      unsyncedEntityCount: number;
-    }>(
-      `SELECT
-        COUNT(*) AS trackedEntityCount,
-        COALESCE(SUM(CASE WHEN sync_status = 'synced' THEN 1 ELSE 0 END), 0) AS syncedEntityCount,
-        COALESCE(SUM(CASE WHEN sync_status = 'syncing' THEN 1 ELSE 0 END), 0) AS syncingEntityCount,
-        COALESCE(SUM(CASE WHEN sync_status IN ('pending', 'failed', 'conflict') THEN 1 ELSE 0 END), 0) AS unsyncedEntityCount,
-        COALESCE(SUM(CASE WHEN sync_status = 'failed' THEN 1 ELSE 0 END), 0) AS failedEntityCount
-       FROM sync_metadata`,
-    ) ?? {
-      failedEntityCount: 0,
-      syncedEntityCount: 0,
-      syncingEntityCount: 0,
-      trackedEntityCount: 0,
-      unsyncedEntityCount: 0,
-    };
-
-  const state = sqliteDatabase.getFirstSync<{
-    lastAttemptedSyncAt: number | null;
-    lastError: string | null;
-    lastSuccessfulSyncAt: number | null;
-  }>(
-    `SELECT
-      last_attempted_sync_at AS lastAttemptedSyncAt,
-      last_error AS lastError,
-      last_successful_sync_at AS lastSuccessfulSyncAt
-     FROM sync_state
-     WHERE scope = ?`,
-    [DEFAULT_SYNC_SCOPE],
-  );
-
   return {
-    errorMessage: state?.lastError ?? null,
-    failedEntityCount: metadataCounts.failedEntityCount,
-    hasRemote: args.hasRemote,
+    errorMessage: null,
+    failedEntityCount: 0,
+    hasRemote: false,
     isOnline: args.isOnline,
-    lastAttemptedAt: state?.lastAttemptedSyncAt ?? null,
-    lastSuccessfulSyncAt: state?.lastSuccessfulSyncAt ?? null,
-    openConflictCount: conflicts,
-    pendingOutboxCount: outboxPending,
-    syncedEntityCount: metadataCounts.syncedEntityCount,
-    syncingEntityCount: metadataCounts.syncingEntityCount,
+    lastAttemptedAt: null,
+    lastSuccessfulSyncAt: null,
+    openConflictCount: 0,
+    pendingOutboxCount: 0,
+    syncedEntityCount: 0,
+    syncingEntityCount: 0,
     status: args.status,
-    trackedEntityCount: metadataCounts.trackedEntityCount,
-    unsyncedEntityCount: metadataCounts.unsyncedEntityCount,
+    trackedEntityCount: 0,
+    unsyncedEntityCount: 0,
   };
 }
 
@@ -1937,6 +1786,44 @@ export function createTransaction(input: CreateTransactionInput) {
   });
 
   return id;
+}
+
+export function seedLocalDemoTransactions() {
+  const samples: CreateTransactionInput[] = [
+    {
+      amount: "1850",
+      categoryId: "cat-food",
+      direction: "expense",
+      merchant: "Naivas Supermarket",
+      notes: "Weekly groceries",
+      source: "manual",
+      transactionAt: Date.now(),
+    },
+    {
+      amount: "450",
+      categoryId: "cat-transport",
+      direction: "expense",
+      merchant: "Matatu Route 111",
+      notes: "Morning commute",
+      source: "manual",
+      transactionAt: Date.now() - 86_400_000,
+    },
+    {
+      amount: "22000",
+      categoryId: "cat-income",
+      direction: "income",
+      merchant: "Client Payment",
+      notes: "Consulting retainer",
+      source: "manual",
+      transactionAt: Date.now() - 172_800_000,
+    },
+  ];
+  const ids = samples.map((sample) => createTransaction(sample));
+
+  return {
+    count: ids.length,
+    ids,
+  };
 }
 
 export function upsertSmsMessage(input: {
@@ -2251,8 +2138,13 @@ export function listSmsMessageIdsForCandidateIds(candidateIds: string[]) {
   ).map((row) => row.smsMessageId);
 }
 
-export function listSmsMessageIdsNeedingAiParse() {
+export function listSmsMessageIdsNeedingAiParse(messageIds?: string[]) {
   ensureSmsMessageSourceColumns();
+  const scopedIds = messageIds?.filter(Boolean) ?? [];
+  const scopeClause = scopedIds.length > 0
+    ? `AND m.id IN (${scopedIds.map(() => "?").join(", ")})`
+    : "";
+
   return sqliteDatabase.getAllSync<{ id: string }>(
     `SELECT m.id
      FROM sms_messages m
@@ -2261,7 +2153,9 @@ export function listSmsMessageIdsNeedingAiParse() {
      WHERE c.id IS NULL
        AND m.source_action = 'process'
        AND m.parse_status = 'failed'
+       ${scopeClause}
      ORDER BY m.received_at DESC`,
+    scopedIds,
   ).map((row) => row.id);
 }
 
@@ -3326,14 +3220,6 @@ export function getSyncState() {
      WHERE scope = ?`,
     [DEFAULT_SYNC_SCOPE],
   );
-}
-
-function safeParseJson<T>(value: string, fallback: T) {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }
 
 function normalizeCategoryLabel(value: string) {

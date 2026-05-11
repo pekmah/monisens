@@ -318,68 +318,6 @@ export const merchantMemoryTable = sqliteTable(
   },
 );
 
-export const syncMetadataTable = sqliteTable(
-  "sync_metadata",
-  {
-    entityType: text("entity_type").notNull(),
-    entityId: text("entity_id").notNull(),
-    syncStatus: text("sync_status", {
-      enum: ["pending", "syncing", "synced", "failed", "conflict"],
-    }).notNull(),
-    lastSyncedAt: integer("last_synced_at"),
-    lastError: text("last_error"),
-    conflictPayloadJson: text("conflict_payload_json"),
-    updatedAt: integer("updated_at").notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.entityType, table.entityId] })],
-);
-
-export const syncOutboxTable = sqliteTable(
-  "sync_outbox",
-  {
-    id: text("id").primaryKey(),
-    entityType: text("entity_type").notNull(),
-    entityId: text("entity_id").notNull(),
-    operation: text("operation", { enum: ["upsert", "delete"] }).notNull(),
-    payloadJson: text("payload_json").notNull(),
-    baseVersion: integer("base_version").notNull(),
-    dedupeKey: text("dedupe_key").notNull(),
-    status: text("status", {
-      enum: ["pending", "syncing", "done", "failed"],
-    }).notNull(),
-    attemptCount: integer("attempt_count").notNull(),
-    nextRetryAt: integer("next_retry_at"),
-    lastError: text("last_error"),
-    createdAt: integer("created_at").notNull(),
-    updatedAt: integer("updated_at").notNull(),
-  },
-  (table) => [index("sync_outbox_entity_idx").on(table.entityType, table.entityId)],
-);
-
-export const syncStateTable = sqliteTable("sync_state", {
-  scope: text("scope").primaryKey(),
-  lastPullCursor: text("last_pull_cursor"),
-  lastSuccessfulSyncAt: integer("last_successful_sync_at"),
-  lastAttemptedSyncAt: integer("last_attempted_sync_at"),
-  lockedAt: integer("locked_at"),
-  lockOwner: text("lock_owner"),
-  lastError: text("last_error"),
-});
-
-export const syncConflictsTable = sqliteTable("sync_conflicts", {
-  id: text("id").primaryKey(),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id").notNull(),
-  localPayloadJson: text("local_payload_json").notNull(),
-  remotePayloadJson: text("remote_payload_json").notNull(),
-  baseVersion: integer("base_version"),
-  serverVersion: integer("server_version").notNull(),
-  status: text("status", {
-    enum: ["open", "resolved_local", "resolved_remote"],
-  }).notNull(),
-  createdAt: integer("created_at").notNull(),
-});
-
 export const monthlyTotalsTable = sqliteTable("monthly_totals", {
   monthKey: text("month_key").primaryKey(),
   incomeMinor: integer("income_minor").notNull(),

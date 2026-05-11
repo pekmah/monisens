@@ -165,7 +165,7 @@ export default function SettingsCategoriesScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Screen contentContainerStyle={styles.content} scroll>
         <NestedScreenHeader
-          description="Categories live in SQLite first and sync through the same outbox path as other finance records."
+          description="Categories live in SQLite first and are included in local backups."
           overline="SETTINGS"
           title="Manage categories"
         />

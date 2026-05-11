@@ -42,3 +42,7 @@ app-example
 /ios
 /android
 .vscode/mcp.json
+# hot-updater
+.env.hotupdater
+.hot-updater/output
+.hot-updater/log
