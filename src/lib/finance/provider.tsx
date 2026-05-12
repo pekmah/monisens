@@ -52,7 +52,6 @@ import {
   requestSmsPermissionUseCase,
   retryAiJobUseCase,
   runAiJobQueueUseCase,
-  seedLocalDemoTransactionsUseCase,
   setSmsSyncErrorUseCase,
   startSmsListenerUseCase,
   stopSmsListenerUseCase,
@@ -117,7 +116,6 @@ const FinanceContext = createContext<{
   retryAiJobs: () => Promise<void>;
   runAiQueue: () => Promise<void>;
   searchText: string;
-  seedDemoTransactions: () => Promise<{ count: number; ids: string[] }>;
   setSmsListenerEnabled: (enabled: boolean) => Promise<void>;
   setSearchText: (value: string) => void;
   snapshot: FinanceSnapshot | null;
@@ -205,12 +203,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     },
     [refresh],
   );
-
-  const seedDemoTransactions = useCallback(async () => {
-    const result = seedLocalDemoTransactionsUseCase();
-    await refresh();
-    return result;
-  }, [refresh]);
 
   const createLocalBudget = useCallback(
     async (input: {
@@ -661,7 +653,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       retryAiJobs,
       runAiQueue,
       searchText,
-      seedDemoTransactions,
       setSmsListenerEnabled,
       setSearchText,
       snapshot,
@@ -698,7 +689,6 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       retryAiJobs,
       runAiQueue,
       searchText,
-      seedDemoTransactions,
       setSmsListenerEnabled,
       snapshot,
       updateLocalCategory,

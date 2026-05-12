@@ -268,7 +268,57 @@ export function applyFinanceMigrations() {
   ensureSmsSyncStateColumns();
   ensureSmsMessageSourceColumns();
   ensureSmsCandidateAiColumns();
+  removeSeededDemoTransactions();
   migrated = true;
+}
+
+function removeSeededDemoTransactions() {
+  const now = Date.now();
+  const result = sqliteDatabase.runSync(
+    `DELETE FROM transactions
+     WHERE source = 'manual'
+       AND (
+         (merchant = 'Naivas Supermarket' AND notes = 'Weekly groceries')
+         OR (merchant = 'Matatu Route 111' AND notes = 'Morning commute')
+         OR (merchant = 'Client Payment' AND notes = 'Consulting retainer')
+       )`,
+  );
+
+  if (result.changes === 0) {
+    return;
+  }
+
+  sqliteDatabase.runSync("DELETE FROM monthly_totals");
+  sqliteDatabase.runSync("DELETE FROM category_summary");
+
+  sqliteDatabase.runSync(
+    `INSERT INTO monthly_totals (month_key, income_minor, expense_minor, net_minor, transaction_count, updated_at)
+     SELECT
+       strftime('%Y-%m', transaction_at / 1000, 'unixepoch') AS month_key,
+       COALESCE(SUM(CASE WHEN direction = 'income' THEN amount_minor ELSE 0 END), 0) AS income_minor,
+       COALESCE(SUM(CASE WHEN direction = 'expense' THEN amount_minor ELSE 0 END), 0) AS expense_minor,
+       COALESCE(SUM(CASE WHEN direction = 'income' THEN amount_minor ELSE -amount_minor END), 0) AS net_minor,
+       COUNT(*) AS transaction_count,
+       ?
+     FROM transactions
+     WHERE deleted_at IS NULL
+     GROUP BY month_key`,
+    now,
+  );
+
+  sqliteDatabase.runSync(
+    `INSERT INTO category_summary (month_key, category_id, amount_minor, transaction_count, updated_at)
+     SELECT
+       strftime('%Y-%m', transaction_at / 1000, 'unixepoch') AS month_key,
+       category_id,
+       COALESCE(SUM(CASE WHEN direction = 'income' THEN amount_minor ELSE -amount_minor END), 0) AS amount_minor,
+       COUNT(*) AS transaction_count,
+       ?
+     FROM transactions
+     WHERE deleted_at IS NULL
+     GROUP BY month_key, category_id`,
+    now,
+  );
 }
 
 function ensureSmsSyncStateColumns() {

@@ -36,7 +36,6 @@ import {
   getTransactionById,
   listIgnoredSmsMessages,
   listPendingSmsCandidatesPage,
-  seedLocalDemoTransactions,
   softDeleteTransaction,
   reorderSmsSourceProfiles,
   setSmsImportLimit,
@@ -126,10 +125,6 @@ export function deleteCategoryUseCase(id: string) {
 
 export function createTransactionUseCase(input: CreateTransactionInput) {
   return createTransaction(input);
-}
-
-export function seedLocalDemoTransactionsUseCase() {
-  return seedLocalDemoTransactions();
 }
 
 export function updateTransactionUseCase(id: string, input: Partial<CreateTransactionInput>) {

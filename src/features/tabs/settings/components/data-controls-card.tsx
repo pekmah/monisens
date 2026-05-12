@@ -1,10 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { useCallback, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
-import { AppButton } from "@/components/base/button";
-import { useToast } from "@/components/toast";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
@@ -13,9 +10,7 @@ import { useFinance } from "@/lib/finance";
 
 export function DataControlsCard() {
   const theme = useAppTheme();
-  const { seedDemoTransactions, snapshot } = useFinance();
-  const { showToast } = useToast();
-  const [isSeeding, setIsSeeding] = useState(false);
+  const { snapshot } = useFinance();
 
   const transactionCount = snapshot?.transactions.length ?? 0;
   const budgetCount = snapshot?.budgets.length ?? 0;
@@ -24,30 +19,6 @@ export function DataControlsCard() {
   const attachmentCount = snapshot?.attachments.length ?? 0;
   const totalFinanceRows =
     transactionCount + budgetCount + categoryCount + importCount + attachmentCount;
-
-  const handleSeedDemoTransactions = useCallback(async () => {
-    setIsSeeding(true);
-
-    try {
-      const result = await seedDemoTransactions();
-      showToast({
-        description: `${result.count} local transactions were saved to SQLite.`,
-        title: "Demo data saved",
-        variant: "success",
-      });
-    } catch (seedError) {
-      showToast({
-        description:
-          seedError instanceof Error
-            ? seedError.message
-            : "Demo transactions could not be saved locally.",
-        title: "Seed failed",
-        variant: "error",
-      });
-    } finally {
-      setIsSeeding(false);
-    }
-  }, [seedDemoTransactions, showToast]);
 
   return (
     <SurfaceCard style={styles.card}>
@@ -135,13 +106,6 @@ export function DataControlsCard() {
           </View>
         </View>
       </View>
-
-      <AppButton
-        loading={isSeeding}
-        onPress={() => void handleSeedDemoTransactions()}
-        title="Seed phone demo data"
-        variant="ghost"
-      />
     </SurfaceCard>
   );
 }

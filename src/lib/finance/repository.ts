@@ -1788,44 +1788,6 @@ export function createTransaction(input: CreateTransactionInput) {
   return id;
 }
 
-export function seedLocalDemoTransactions() {
-  const samples: CreateTransactionInput[] = [
-    {
-      amount: "1850",
-      categoryId: "cat-food",
-      direction: "expense",
-      merchant: "Naivas Supermarket",
-      notes: "Weekly groceries",
-      source: "manual",
-      transactionAt: Date.now(),
-    },
-    {
-      amount: "450",
-      categoryId: "cat-transport",
-      direction: "expense",
-      merchant: "Matatu Route 111",
-      notes: "Morning commute",
-      source: "manual",
-      transactionAt: Date.now() - 86_400_000,
-    },
-    {
-      amount: "22000",
-      categoryId: "cat-income",
-      direction: "income",
-      merchant: "Client Payment",
-      notes: "Consulting retainer",
-      source: "manual",
-      transactionAt: Date.now() - 172_800_000,
-    },
-  ];
-  const ids = samples.map((sample) => createTransaction(sample));
-
-  return {
-    count: ids.length,
-    ids,
-  };
-}
-
 export function upsertSmsMessage(input: {
   body: string;
   fingerprint: string;
