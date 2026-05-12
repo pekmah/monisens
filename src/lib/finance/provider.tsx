@@ -97,7 +97,10 @@ const FinanceContext = createContext<{
   dismissSmsCandidate: (id: string) => Promise<void>;
   duplicateSmsSourceProfile: (id: string) => Promise<string>;
   error: string | null;
-  importSmsInbox: () => Promise<SmsImportResult>;
+  importSmsInbox: (input?: {
+    limit?: number;
+    sinceTimestamp?: number | null;
+  }) => Promise<SmsImportResult>;
   loadIgnoredSmsMessages: (limit?: number) => Promise<IgnoredSmsMessageRecord[]>;
   loadPendingSmsCandidatesPage: (input: {
     limit: number;
@@ -342,9 +345,12 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     return result;
   }, [refresh]);
 
-  const importSmsInbox = useCallback(async () => {
+  const importSmsInbox = useCallback(async (input?: {
+    limit?: number;
+    sinceTimestamp?: number | null;
+  }) => {
     try {
-      const result = await importSmsInboxUseCase();
+      const result = await importSmsInboxUseCase(input);
       if (onlineRef.current) {
         await runAiJobQueueUseCase();
       }

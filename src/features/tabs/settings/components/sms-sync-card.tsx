@@ -18,13 +18,12 @@ import {
 export function SmsSyncCard() {
   const theme = useAppTheme();
   const {
-    importSmsInbox,
     requestSmsPermission,
     refresh,
     setSmsListenerEnabled,
     snapshot,
   } = useFinance();
-  const [busy, setBusy] = useState<"permission" | "import" | "listener" | null>(null);
+  const [busy, setBusy] = useState<"permission" | "listener" | null>(null);
   const [permissionDebug, setPermissionDebug] = useState<{
     readGranted: boolean;
     receiveGranted: boolean;
@@ -91,15 +90,6 @@ export function SmsSyncCard() {
       await requestSmsPermission();
       const diagnostics = await getSmsPermissionDiagnostics();
       setPermissionDebug(diagnostics);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleImport() {
-    setBusy("import");
-    try {
-      await importSmsInbox();
     } finally {
       setBusy(null);
     }
@@ -308,8 +298,7 @@ export function SmsSyncCard() {
                   title={`Review queue${sms?.candidateCount ? ` (${sms.candidateCount})` : ""}`}
                 />
                 <AppButton
-                  loading={busy === "import"}
-                  onPress={() => void handleImport()}
+                  onPress={() => router.push("/sms/import" as never)}
                   title="Import inbox"
                   variant="secondary"
                 />

@@ -152,14 +152,19 @@ export async function requestSmsPermissionUseCase() {
   return requestSmsPermission();
 }
 
-export async function importSmsInboxUseCase(limit?: number) {
+export async function importSmsInboxUseCase(input: {
+  limit?: number;
+  sinceTimestamp?: number | null;
+} = {}) {
   const resolvedLimit =
-    limit ??
+    input.limit ??
     getSmsSyncState()?.importLimit ??
     DEFAULT_SMS_IMPORT_LIMIT;
-  const messages = await readSmsInbox(resolvedLimit, null);
+  const messages = await readSmsInbox(resolvedLimit, input.sinceTimestamp ?? null);
   const result = await importSmsMessages(messages);
-  enqueuePendingSmsAiJobs(messages.length > 1 ? "import_batch" : "sms_single");
+  if (messages.length > 0) {
+    enqueuePendingSmsAiJobs(messages.length > 1 ? "import_batch" : "sms_single");
+  }
   return result;
 }
 

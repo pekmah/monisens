@@ -104,6 +104,10 @@ function RootNavigator() {
                     options={{ headerShown: false }}
                   />
                   <Stack.Screen
+                    name="sms/import"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
                     name="sms/ai"
                     options={{ headerShown: false }}
                   />
