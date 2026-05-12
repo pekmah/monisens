@@ -1,4 +1,8 @@
-import { NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from "react-native";
+import {
+  requireOptionalNativeModule,
+  type EventSubscription,
+} from "expo-modules-core";
+import { PermissionsAndroid, Platform } from "react-native";
 
 export type NativeSmsMessage = {
   body: string;
@@ -14,9 +18,24 @@ type SmsNativeModule = {
   stopListening: () => Promise<void>;
 };
 
-const moduleRef = NativeModules.MonisensSms as SmsNativeModule | undefined;
-const smsEventEmitter = moduleRef ? new NativeEventEmitter(NativeModules.MonisensSms) : null;
 const SMS_EVENT_NAME = "MonisensSmsReceived";
+
+type SmsEvents = {
+  MonisensSmsReceived: (message: NativeSmsMessage) => void;
+};
+
+type SmsEventEmitter = {
+  addListener: <EventName extends keyof SmsEvents>(
+    eventName: EventName,
+    listener: SmsEvents[EventName],
+  ) => EventSubscription;
+};
+
+const moduleRef =
+  Platform.OS === "android" ? requireOptionalNativeModule<SmsNativeModule>("MonisensSms") : null;
+const smsEventEmitter = moduleRef === null
+  ? null
+  : (moduleRef as unknown as SmsEventEmitter);
 
 export function isSmsSupportedPlatform() {
   return Platform.OS === "android" && Boolean(moduleRef);
@@ -120,7 +139,7 @@ export async function stopSmsListening() {
 
 export function subscribeToSmsEvents(listener: (message: NativeSmsMessage) => void) {
   if (!smsEventEmitter) {
-    return { remove() {} };
+    return { remove() {} } satisfies EventSubscription;
   }
 
   return smsEventEmitter.addListener(SMS_EVENT_NAME, listener);
