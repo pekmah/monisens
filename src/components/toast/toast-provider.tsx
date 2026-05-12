@@ -41,7 +41,7 @@ type ToastContextValue = {
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
-const DEFAULT_DURATION = 15000;
+const DEFAULT_DURATION = 3500;
 const MAX_VISIBLE_TOASTS = 3;
 const COLLAPSED_DESCRIPTION_LENGTH = 56;
 const COLLAPSED_DESCRIPTION_HEIGHT = LineHeights.sm;

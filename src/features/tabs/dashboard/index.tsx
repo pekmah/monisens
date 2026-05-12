@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
+import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { AppFlashList } from "@/components/base";
@@ -24,17 +25,36 @@ import {
 } from "@/features/tabs/dashboard/components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatMoney, useFinance } from "@/lib/finance";
+import type { TransactionRecord } from "@/lib/finance/types";
+
+type SpendingPeriod = "today" | "week" | "month" | "year" | "all";
+
+const spendingPeriods: { label: string; value: SpendingPeriod }[] = [
+  { label: "Today", value: "today" },
+  { label: "Week", value: "week" },
+  { label: "Month", value: "month" },
+  { label: "Year", value: "year" },
+  { label: "All", value: "all" },
+];
 
 export default function DashboardScreen() {
   const theme = useAppTheme();
   const { snapshot } = useFinance();
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<SpendingPeriod>("today");
 
   const monthTotals = snapshot?.currentMonthTotals;
-  const spendable = Math.max(monthTotals?.netMinor ?? 0, 0);
-  const spent = monthTotals?.expenseMinor ?? 0;
+  const budgetedMinor = snapshot?.budgetOverview?.limitMinor ?? 0;
+  const spent = useMemo(
+    () => getPeriodExpenseMinor(snapshot?.transactions ?? [], selectedPeriod),
+    [selectedPeriod, snapshot?.transactions],
+  );
+  const periodLabel = getPeriodLabel(selectedPeriod);
+  const monthSpent = monthTotals?.expenseMinor ?? 0;
+  const remainingBudget = Math.max(budgetedMinor - monthSpent, 0);
   const budgetProgress =
-    monthTotals && monthTotals.incomeMinor > 0
-      ? Math.min((spent / monthTotals.incomeMinor) * 100, 100)
+    budgetedMinor > 0
+      ? Math.min((monthSpent / budgetedMinor) * 100, 100)
       : 0;
 
   return (
@@ -51,15 +71,43 @@ export default function DashboardScreen() {
                 style={styles.overline}
                 variant="labelMd"
               >
-                SAFE TO SPEND TODAY
+                MONEY SPENT {periodLabel.toUpperCase()}
               </AppText>
               <AppText
                 color="onPrimary"
                 style={styles.heroAmount}
                 variant="displayLg"
               >
-                {formatMoney(spendable, "KES")}
+                {formatMoney(spent, "KES")}
               </AppText>
+            </View>
+            <View style={styles.periodSelector}>
+              {spendingPeriods.map((period) => {
+                const selected = period.value === selectedPeriod;
+
+                return (
+                  <AppPressable
+                    key={period.value}
+                    onPress={() => setSelectedPeriod(period.value)}
+                    style={[
+                      styles.periodPill,
+                      {
+                        backgroundColor: selected
+                          ? theme.colors.onPrimary
+                          : "rgba(255,255,255,0.12)",
+                      },
+                    ]}
+                  >
+                    <AppText
+                      color={selected ? "primary" : "onPrimary"}
+                      style={styles.periodPillText}
+                      variant="labelMd"
+                    >
+                      {period.label}
+                    </AppText>
+                  </AppPressable>
+                );
+              })}
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroFooter}>
@@ -69,14 +117,30 @@ export default function DashboardScreen() {
                   style={styles.overlineSmall}
                   variant="labelMd"
                 >
-                  REMAINING THIS MONTH
+                  BUDGETED THIS MONTH
                 </AppText>
                 <AppText
                   color="onPrimary"
                   style={styles.heroSecondaryAmount}
                   variant="titleMd"
                 >
-                  {formatMoney(spendable, "KES")}
+                  {formatMoney(budgetedMinor, "KES")}
+                </AppText>
+              </View>
+              <View style={styles.heroFooterMetric}>
+                <AppText
+                  color="onPrimary"
+                  style={styles.overlineSmall}
+                  variant="labelMd"
+                >
+                  REMAINING
+                </AppText>
+                <AppText
+                  color="onPrimary"
+                  style={styles.heroSecondaryAmount}
+                  variant="titleMd"
+                >
+                  {formatMoney(remainingBudget, "KES")}
                 </AppText>
               </View>
             </View>
@@ -214,6 +278,77 @@ export default function DashboardScreen() {
   );
 }
 
+function getPeriodExpenseMinor(
+  transactions: TransactionRecord[],
+  period: SpendingPeriod,
+) {
+  const start = getPeriodStartTimestamp(period);
+
+  return transactions.reduce((total, transaction) => {
+    if (transaction.direction !== "expense") {
+      return total;
+    }
+
+    if (start && transaction.transactionAt < start) {
+      return total;
+    }
+
+    return total + transaction.amountMinor;
+  }, 0);
+}
+
+function getPeriodStartTimestamp(period: SpendingPeriod) {
+  const now = new Date();
+
+  if (period === "all") {
+    return null;
+  }
+
+  if (period === "today") {
+    return new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+  }
+
+  if (period === "week") {
+    const day = now.getDay();
+    const daysSinceMonday = day === 0 ? 6 : day - 1;
+    return new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - daysSinceMonday,
+    ).getTime();
+  }
+
+  if (period === "month") {
+    return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  }
+
+  return new Date(now.getFullYear(), 0, 1).getTime();
+}
+
+function getPeriodLabel(period: SpendingPeriod) {
+  if (period === "week") {
+    return "this week";
+  }
+
+  if (period === "month") {
+    return "this month";
+  }
+
+  if (period === "year") {
+    return "this year";
+  }
+
+  if (period === "all") {
+    return "overall";
+  }
+
+  return "today";
+}
+
 const styles = StyleSheet.create({
   bentoGrid: {
     gap: Spacing.lg,
@@ -267,6 +402,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
     justifyContent: "space-between",
+  },
+  heroFooterMetric: {
+    alignItems: "flex-end",
   },
   heroOrb: {
     backgroundColor: "rgba(255,255,255,0.09)",
@@ -326,6 +464,22 @@ const styles = StyleSheet.create({
     borderRadius: Radii.full,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  periodPill: {
+    borderRadius: Radii.full,
+    minHeight: Sizes["5xl"],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  periodPillText: {
+    fontFamily: font.semiBold,
+    fontSize: FontSizes.xs,
+    lineHeight: LineHeights.md,
+  },
+  periodSelector: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
   },
   overline: {
     fontFamily: font.bold,
