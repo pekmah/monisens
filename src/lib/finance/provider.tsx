@@ -13,6 +13,9 @@ import { AppState } from "react-native";
 
 import { subscribeToAiQueueUpdates } from "@/lib/ai/events";
 import type {
+  BillRecord,
+  BillTransactionMatchRecord,
+  CreateBillInput,
   CreateTransactionInput,
   FinanceSnapshot,
   IgnoredSmsMessageRecord,
@@ -24,9 +27,11 @@ import type {
 } from "@/lib/finance/types";
 import {
   acceptSmsCandidateReviewUseCase,
+  archiveBillUseCase,
   approveCategoryProposalUseCase,
   bootstrapFinanceStore,
   connectAiJobStreamUseCase,
+  createBillUseCase,
   createBudgetUseCase,
   createCategoryUseCase,
   createSmsSourceProfileUseCase,
@@ -41,6 +46,9 @@ import {
   getSmsPermissionStatusUseCase,
   handleIncomingSmsUseCase,
   importSmsInboxUseCase,
+  linkBillOccurrenceToTransactionUseCase,
+  loadBillByIdUseCase,
+  loadBillTransactionMatchesUseCase,
   loadFinanceSnapshot,
   loadIgnoredSmsMessagesUseCase,
   loadPendingSmsCandidatesPageUseCase,
@@ -57,6 +65,8 @@ import {
   stopSmsListenerUseCase,
   syncRemoteAiJobsUseCase,
   syncRemoteAiJobUseCase,
+  unlinkBillOccurrencePaymentUseCase,
+  updateBillUseCase,
   updateCategoryUseCase,
   updateSmsImportLimitUseCase,
   updateSmsSourceProfileUseCase,
@@ -67,7 +77,9 @@ import { stopSmsListening, subscribeToSmsEvents } from "@/lib/sms-native";
 
 const FinanceContext = createContext<{
   acceptSmsCandidate: (id: string) => Promise<string>;
+  archiveBill: (id: string) => Promise<void>;
   approveCategoryProposal: (id: string) => Promise<void>;
+  createBill: (input: CreateBillInput) => Promise<string>;
   createCategory: (input: { color: string; label: string }) => Promise<string>;
   createSmsSourceProfile: (input: {
     action: "process" | "exclude";
@@ -100,6 +112,14 @@ const FinanceContext = createContext<{
     limit?: number;
     sinceTimestamp?: number | null;
   }) => Promise<SmsImportResult>;
+  linkBillOccurrenceToTransaction: (input: {
+    occurrenceId: string;
+    transactionId: string;
+  }) => Promise<void>;
+  loadBillById: (id: string) => Promise<BillRecord | null>;
+  loadBillTransactionMatches: (
+    occurrenceId: string,
+  ) => Promise<BillTransactionMatchRecord[]>;
   loadIgnoredSmsMessages: (limit?: number) => Promise<IgnoredSmsMessageRecord[]>;
   loadPendingSmsCandidatesPage: (input: {
     limit: number;
@@ -124,6 +144,8 @@ const FinanceContext = createContext<{
     id: string;
     label: string;
   }) => Promise<void>;
+  unlinkBillOccurrencePayment: (occurrenceId: string) => Promise<void>;
+  updateBill: (id: string, input: Partial<CreateBillInput>) => Promise<void>;
   updateSmsSourceProfile: (input: {
     action: "process" | "exclude";
     description?: string | null;
@@ -198,6 +220,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const createLocalTransaction = useCallback(
     async (input: CreateTransactionInput) => {
       const id = createTransactionUseCase(input);
+      if (onlineRef.current) {
+        await runAiJobQueueUseCase();
+      }
       await refresh();
       return id;
     },
@@ -216,6 +241,58 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       return id;
     },
     [refresh],
+  );
+
+  const createLocalBill = useCallback(
+    async (input: CreateBillInput) => {
+      const id = createBillUseCase(input);
+      await refresh();
+      return id;
+    },
+    [refresh],
+  );
+
+  const updateLocalBill = useCallback(
+    async (id: string, input: Partial<CreateBillInput>) => {
+      updateBillUseCase(id, input);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const archiveLocalBill = useCallback(
+    async (id: string) => {
+      archiveBillUseCase(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const linkLocalBillOccurrence = useCallback(
+    async (input: { occurrenceId: string; transactionId: string }) => {
+      linkBillOccurrenceToTransactionUseCase(input);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const unlinkLocalBillOccurrence = useCallback(
+    async (occurrenceId: string) => {
+      unlinkBillOccurrencePaymentUseCase(occurrenceId);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const loadBillById = useCallback(
+    async (id: string) => loadBillByIdUseCase(id),
+    [],
+  );
+
+  const loadBillTransactionMatches = useCallback(
+    async (occurrenceId: string) =>
+      loadBillTransactionMatchesUseCase(occurrenceId),
+    [],
   );
 
   const createLocalCategory = useCallback(
@@ -252,6 +329,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const updateLocalTransaction = useCallback(
     async (id: string, input: Partial<CreateTransactionInput>) => {
       updateTransactionUseCase(id, input);
+      if (onlineRef.current) {
+        await runAiJobQueueUseCase();
+      }
       await refresh();
     },
     [refresh],
@@ -628,7 +708,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const value = useMemo(
     () => ({
       acceptSmsCandidate,
+      archiveBill: archiveLocalBill,
       approveCategoryProposal,
+      createBill: createLocalBill,
       createCategory: createLocalCategory,
       createSmsSourceProfile: createLocalSmsSourceProfile,
       createBudget: createLocalBudget,
@@ -640,6 +722,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       duplicateSmsSourceProfile: duplicateLocalSmsSourceProfile,
       error,
       importSmsInbox,
+      linkBillOccurrenceToTransaction: linkLocalBillOccurrence,
+      loadBillById,
+      loadBillTransactionMatches,
       loadIgnoredSmsMessages,
       loadSmsSourceProfileGroups,
       loadTransactionById,
@@ -657,6 +742,8 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       setSearchText,
       snapshot,
       updateCategory: updateLocalCategory,
+      unlinkBillOccurrencePayment: unlinkLocalBillOccurrence,
+      updateBill: updateLocalBill,
       updateSmsImportLimit,
       updateSmsSourceProfile: updateLocalSmsSourceProfile,
       updateSmsCandidateCategory: updateCandidateCategory,
@@ -664,7 +751,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     }),
     [
       acceptSmsCandidate,
+      archiveLocalBill,
       approveCategoryProposal,
+      createLocalBill,
       createLocalCategory,
       createLocalSmsSourceProfile,
       createLocalBudget,
@@ -676,6 +765,9 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       duplicateLocalSmsSourceProfile,
       error,
       importSmsInbox,
+      linkLocalBillOccurrence,
+      loadBillById,
+      loadBillTransactionMatches,
       loadIgnoredSmsMessages,
       loadSmsSourceProfileGroups,
       loadTransactionById,
@@ -692,6 +784,8 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       setSmsListenerEnabled,
       snapshot,
       updateLocalCategory,
+      unlinkLocalBillOccurrence,
+      updateLocalBill,
       updateSmsImportLimit,
       updateLocalSmsSourceProfile,
       updateCandidateCategory,

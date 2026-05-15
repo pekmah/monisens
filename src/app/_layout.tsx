@@ -14,7 +14,6 @@ import {
   Manrope_800ExtraBold,
 } from "@expo-google-fonts/manrope";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { HotUpdater } from "@hot-updater/react-native";
 import { ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -29,7 +28,7 @@ import { ToastProvider } from "@/components/toast";
 import { font } from "@/constants/fonts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { FinanceProvider } from "@/lib/finance";
-import { getHotUpdaterOptions, OtaUpdateController } from "@/lib/ota-updates";
+import { OtaUpdateController, withHotUpdater } from "@/lib/ota-updates";
 import { getThemes } from "@/lib/theme";
 import { ThemeControllerProvider } from "@/lib/theme-controller";
 
@@ -100,6 +99,22 @@ function RootNavigator() {
                     options={{ headerShown: false }}
                   />
                   <Stack.Screen
+                    name="bills/index"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="bills/new"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="bills/[id]"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="bills/[id]/edit"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
                     name="sms/review"
                     options={{ headerShown: false }}
                   />
@@ -166,4 +181,4 @@ function RootNavigator() {
   );
 }
 
-export default HotUpdater.wrap(getHotUpdaterOptions())(RootLayout);
+export default withHotUpdater(RootLayout);

@@ -1,3 +1,5 @@
+import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -10,7 +12,7 @@ import {
   CategoryAllocationsCard,
 } from "@/features/tabs/budgeting/components";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFinance } from "@/lib/finance";
+import { formatMoney, useFinance } from "@/lib/finance";
 
 export default function BudgetingScreen() {
   const theme = useAppTheme();
@@ -41,6 +43,12 @@ export default function BudgetingScreen() {
     <TabScreen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <BudgetOverviewCard overview={snapshot?.budgetOverview ?? null} />
+        <BillsPlanningCard
+          dueSoonCount={snapshot?.bills.dueSoonCount ?? 0}
+          monthlyImpactMinor={snapshot?.bills.monthlyImpactMinor ?? 0}
+          overdueCount={snapshot?.bills.overdueCount ?? 0}
+          scheduleCount={snapshot?.bills.schedules.length ?? 0}
+        />
         <BudgetTipCard />
         {creating ? (
           <View
@@ -105,10 +113,108 @@ export default function BudgetingScreen() {
   );
 }
 
+function BillsPlanningCard({
+  dueSoonCount,
+  monthlyImpactMinor,
+  overdueCount,
+  scheduleCount,
+}: {
+  dueSoonCount: number;
+  monthlyImpactMinor: number;
+  overdueCount: number;
+  scheduleCount: number;
+}) {
+  const theme = useAppTheme();
+  const status =
+    overdueCount > 0
+      ? `${overdueCount} overdue`
+      : dueSoonCount > 0
+        ? `${dueSoonCount} due soon`
+        : scheduleCount > 0
+          ? "On schedule"
+          : "Not set up";
+
+  return (
+    <View
+      style={[
+        styles.billsCard,
+        { backgroundColor: theme.colors.surfaceContainerLowest },
+      ]}
+    >
+      <View style={styles.billsHeader}>
+        <View
+          style={[
+            styles.billsIcon,
+            { backgroundColor: `${theme.colors.secondary}14` },
+          ]}
+        >
+          <Feather color={theme.colors.secondary} name="calendar" size={18} />
+        </View>
+        <View style={styles.billsCopy}>
+          <AppText variant="titleMd">Bills planning</AppText>
+          <AppText color="mutedText" variant="bodyMd">
+            Track recurring and one-time obligations, then confirm payments from real transactions.
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.billsMetrics}>
+        <BillMetric label="Schedules" value={String(scheduleCount)} />
+        <BillMetric label="Status" value={status} />
+        <BillMetric label="Monthly" value={formatMoney(monthlyImpactMinor, "KES")} />
+      </View>
+      <AppButton
+        onPress={() => router.push("/bills" as never)}
+        title={scheduleCount > 0 ? "Manage bills" : "Set up bills"}
+        variant="secondary"
+      />
+    </View>
+  );
+}
+
+function BillMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.billMetric}>
+      <AppText color="mutedText" variant="labelMd">
+        {label}
+      </AppText>
+      <AppText variant="labelMd">{value}</AppText>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     gap: Spacing.sm,
+  },
+  billMetric: {
+    flex: 1,
+    gap: Sizes.xxs,
+  },
+  billsCard: {
+    borderRadius: Radii.xl,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
+  },
+  billsCopy: {
+    flex: 1,
+    gap: Sizes.xxs,
+  },
+  billsHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  billsIcon: {
+    alignItems: "center",
+    borderRadius: Radii.full,
+    height: Sizes["8xl"],
+    justifyContent: "center",
+    width: Sizes["8xl"],
+  },
+  billsMetrics: {
+    flexDirection: "row",
+    gap: Spacing.md,
   },
   content: {
     gap: Spacing.lg,

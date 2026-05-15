@@ -10,11 +10,17 @@ import {
 import { sqliteDatabase } from "@/lib/finance/database";
 import type {
   AttachmentRecord,
+  BillCadence,
+  BillOccurrenceRecord,
+  BillsSnapshot,
+  BillTransactionMatchRecord,
+  BillRecord,
   BreakdownRecord,
   BudgetAllocationRecord,
   BudgetOverviewRecord,
   BudgetRecord,
   CategoryRecord,
+  CreateBillInput,
   CreateTransactionInput,
   DashboardTransactionRecord,
   FinanceSnapshot,
@@ -45,6 +51,7 @@ import type {
   TransactionRecord,
   TrajectoryPointRecord,
   TrajectoryRecord,
+  UpdateBillInput,
   UpdateTransactionInput,
 } from "@/lib/finance/types";
 import {
@@ -912,6 +919,27 @@ export function getTransactionById(id: string) {
   );
 }
 
+export function getCategoryLearningContext(categoryId: string | null | undefined) {
+  if (!categoryId) {
+    return null;
+  }
+
+  return (
+    sqliteDatabase.getFirstSync<{
+      color: string;
+      id: string;
+      label: string;
+    }>(
+      `SELECT id, label, color
+       FROM categories
+       WHERE id = ?
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      [categoryId],
+    ) ?? null
+  );
+}
+
 export function getCurrentMonthTotals(): MonthlyTotalsRecord | null {
   const currentMonth = monthKeyFromTimestamp(Date.now());
   return (
@@ -1104,6 +1132,7 @@ export function getSpendingAlert(): SpendingAlertRecord | null {
 export function getInsightSubscriptions(): InsightSubscriptionRecord[] {
   const rows = sqliteDatabase.getAllSync<{
     amountMinor: number;
+    categoryId: string | null;
     count: number;
     lastTransactionAt: number;
     merchant: string;
@@ -1112,6 +1141,7 @@ export function getInsightSubscriptions(): InsightSubscriptionRecord[] {
     `SELECT
       t.merchant AS merchant,
       ROUND(AVG(t.amount_minor)) AS amountMinor,
+      t.category_id AS categoryId,
       COUNT(*) AS count,
       MAX(t.transaction_at) AS lastTransactionAt,
       COALESCE(c.color, '#4b5563') AS categoryColor
@@ -1121,7 +1151,7 @@ export function getInsightSubscriptions(): InsightSubscriptionRecord[] {
        AND t.user_id = ?
        AND t.direction = 'expense'
        AND t.transaction_at >= ?
-     GROUP BY LOWER(t.merchant), COALESCE(c.color, '#4b5563')
+     GROUP BY LOWER(t.merchant), t.category_id, COALESCE(c.color, '#4b5563')
      HAVING COUNT(*) >= 2
      ORDER BY MAX(t.transaction_at) DESC, COUNT(*) DESC
      LIMIT 5`,
@@ -1131,6 +1161,8 @@ export function getInsightSubscriptions(): InsightSubscriptionRecord[] {
   return rows.map((row, index) => ({
     accent: row.categoryColor,
     amount: formatMoney(row.amountMinor, "KES"),
+    amountMinor: row.amountMinor,
+    categoryId: row.categoryId,
     id: `${row.merchant}-${index}`,
     meta: `${row.count} payments in the last 180 days`,
     title: row.merchant,
@@ -1235,6 +1267,644 @@ export function getBudgetAllocations(): BudgetAllocationRecord[] {
         percentage >= 100 ? "Over budget" : percentage > 85 ? "Watch" : "On track",
       value: percentage,
     };
+  });
+}
+
+function startOfDay(timestamp: number) {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function daysBetween(left: number, right: number) {
+  return Math.round((startOfDay(left) - startOfDay(right)) / 86_400_000);
+}
+
+function formatDateKey(timestamp: number) {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addMonthsClamped(timestamp: number, months: number) {
+  const source = new Date(timestamp);
+  const year = source.getFullYear();
+  const month = source.getMonth() + months;
+  const day = source.getDate();
+  const target = new Date(year, month, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
+  target.setHours(source.getHours(), source.getMinutes(), source.getSeconds(), source.getMilliseconds());
+  return target.getTime();
+}
+
+function addBillCadence(timestamp: number, cadence: BillCadence, index: number) {
+  if (cadence === "once") {
+    return timestamp;
+  }
+
+  if (cadence === "weekly") {
+    return timestamp + index * 7 * 86_400_000;
+  }
+
+  if (cadence === "monthly") {
+    return addMonthsClamped(timestamp, index);
+  }
+
+  return addMonthsClamped(timestamp, index * 12);
+}
+
+function billPeriodKey(cadence: BillCadence, dueAt: number) {
+  if (cadence === "weekly" || cadence === "once") {
+    return formatDateKey(dueAt);
+  }
+
+  if (cadence === "monthly") {
+    return monthKeyFromTimestamp(dueAt);
+  }
+
+  return String(new Date(dueAt).getFullYear());
+}
+
+function normalizeMatchText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+export function generateUpcomingBillOccurrences() {
+  const now = Date.now();
+  const horizon = addMonthsClamped(now, 18);
+  const bills = sqliteDatabase.getAllSync<{
+    amountMinor: number;
+    cadence: BillCadence;
+    currency: string;
+    endAt: number | null;
+    id: string;
+    occurrenceCount: number | null;
+    startAt: number;
+  }>(
+    `SELECT
+      id,
+      amount_minor AS amountMinor,
+      cadence,
+      currency,
+      end_at AS endAt,
+      occurrence_count AS occurrenceCount,
+      start_at AS startAt
+     FROM bills
+     WHERE user_id = ?
+       AND deleted_at IS NULL
+       AND status = 'active'`,
+    [DEFAULT_USER_ID],
+  );
+
+  sqliteDatabase.withTransactionSync(() => {
+    for (const bill of bills) {
+      const maxCount = bill.cadence === "once"
+        ? 1
+        : Math.min(bill.occurrenceCount ?? 120, 120);
+
+      for (let index = 0; index < maxCount; index += 1) {
+        const dueAt = addBillCadence(bill.startAt, bill.cadence, index);
+
+        if (bill.endAt && dueAt > bill.endAt) {
+          break;
+        }
+
+        if (dueAt > horizon) {
+          break;
+        }
+
+        const periodKey = billPeriodKey(bill.cadence, dueAt);
+        const id = `${bill.id}_${periodKey}`;
+        sqliteDatabase.runSync(
+          `INSERT INTO bill_occurrences (
+            id, bill_id, user_id, period_key, due_at, amount_minor, currency,
+            status, linked_transaction_id, paid_at, match_confidence, match_reason,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'due', NULL, NULL, NULL, NULL, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            due_at = excluded.due_at,
+            amount_minor = excluded.amount_minor,
+            currency = excluded.currency,
+            updated_at = CASE
+              WHEN bill_occurrences.status = 'due' THEN excluded.updated_at
+              ELSE bill_occurrences.updated_at
+            END`,
+          [
+            id,
+            bill.id,
+            DEFAULT_USER_ID,
+            periodKey,
+            dueAt,
+            bill.amountMinor,
+            bill.currency,
+            now,
+            now,
+          ],
+        );
+      }
+    }
+  });
+}
+
+export function listBills(): BillRecord[] {
+  return sqliteDatabase.getAllSync<BillRecord>(
+    `SELECT
+      b.id,
+      b.account_label AS accountLabel,
+      b.amount_minor AS amountMinor,
+      b.cadence,
+      COALESCE(c.color, '#4b5563') AS categoryColor,
+      b.category_id AS categoryId,
+      COALESCE(c.label, 'Uncategorized') AS categoryLabel,
+      b.created_at AS createdAt,
+      b.currency,
+      b.deleted_at AS deletedAt,
+      b.end_at AS endAt,
+      b.expected_merchant AS expectedMerchant,
+      b.merchant_pattern AS merchantPattern,
+      b.name,
+      b.notes,
+      b.occurrence_count AS occurrenceCount,
+      b.start_at AS startAt,
+      b.status,
+      'local' AS syncStatus,
+      b.updated_at AS updatedAt,
+      b.version
+     FROM bills b
+     LEFT JOIN categories c ON c.id = b.category_id
+     WHERE b.user_id = ?
+       AND b.deleted_at IS NULL
+     ORDER BY b.status ASC, b.start_at ASC, b.name ASC`,
+    [DEFAULT_USER_ID],
+  );
+}
+
+function mapBillOccurrenceState(status: BillOccurrenceRecord["status"], dueAt: number) {
+  if (status === "paid") {
+    return "paid" as const;
+  }
+
+  const diff = daysBetween(dueAt, Date.now());
+  if (diff < 0) {
+    return "overdue" as const;
+  }
+
+  if (diff <= 7) {
+    return "due_soon" as const;
+  }
+
+  return "upcoming" as const;
+}
+
+export function listBillOccurrences(limit = 80): BillOccurrenceRecord[] {
+  const now = Date.now();
+  const monthStartDate = new Date(now);
+  monthStartDate.setDate(1);
+  monthStartDate.setHours(0, 0, 0, 0);
+  const nextMonthStart = new Date(monthStartDate);
+  nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
+  const horizon = now + 120 * 86_400_000;
+  const rows = sqliteDatabase.getAllSync<Omit<BillOccurrenceRecord, "state">>(
+    `SELECT
+      o.id,
+      o.bill_id AS billId,
+      b.name AS billName,
+      o.amount_minor AS amountMinor,
+      COALESCE(c.color, '#4b5563') AS categoryColor,
+      b.category_id AS categoryId,
+      COALESCE(c.label, 'Uncategorized') AS categoryLabel,
+      o.currency,
+      o.due_at AS dueAt,
+      t.amount_minor AS linkedTransactionAmountMinor,
+      t.transaction_at AS linkedTransactionAt,
+      o.linked_transaction_id AS linkedTransactionId,
+      t.merchant AS linkedTransactionMerchant,
+      o.match_confidence AS matchConfidence,
+      o.match_reason AS matchReason,
+      o.paid_at AS paidAt,
+      o.period_key AS periodKey,
+      o.status,
+      o.updated_at AS updatedAt
+     FROM bill_occurrences o
+     INNER JOIN bills b ON b.id = o.bill_id
+     LEFT JOIN categories c ON c.id = b.category_id
+     LEFT JOIN transactions t ON t.id = o.linked_transaction_id
+     WHERE o.user_id = ?
+       AND b.deleted_at IS NULL
+       AND b.status = 'active'
+       AND (
+         o.status = 'due'
+         OR (o.status = 'paid' AND o.paid_at >= ? AND o.paid_at < ?)
+       )
+       AND o.due_at <= ?
+     ORDER BY
+       CASE
+         WHEN o.status = 'paid' THEN 4
+         WHEN o.due_at < ? THEN 1
+         WHEN o.due_at <= ? THEN 2
+         ELSE 3
+       END ASC,
+       o.due_at ASC
+     LIMIT ?`,
+    [
+      DEFAULT_USER_ID,
+      monthStartDate.getTime(),
+      nextMonthStart.getTime(),
+      horizon,
+      startOfDay(now),
+      now + 7 * 86_400_000,
+      limit,
+    ],
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    state: mapBillOccurrenceState(row.status, row.dueAt),
+  }));
+}
+
+export function getBillById(id: string) {
+  return listBills().find((bill) => bill.id === id) ?? null;
+}
+
+export function getBillOccurrenceById(id: string) {
+  return listBillOccurrences(200).find((occurrence) => occurrence.id === id) ?? null;
+}
+
+export function getBillsSnapshot(): BillsSnapshot {
+  generateUpcomingBillOccurrences();
+  const schedules = listBills();
+  const occurrences = listBillOccurrences();
+  const monthlyImpactMinor = schedules
+    .filter((bill) => bill.status === "active")
+    .reduce((total, bill) => {
+      if (bill.cadence === "weekly") {
+        return total + Math.round(bill.amountMinor * 4.33);
+      }
+
+      if (bill.cadence === "yearly") {
+        return total + Math.round(bill.amountMinor / 12);
+      }
+
+      return total + bill.amountMinor;
+    }, 0);
+
+  return {
+    dueSoonCount: occurrences.filter((occurrence) => occurrence.state === "due_soon").length,
+    monthlyImpactMinor,
+    occurrences,
+    overdueCount: occurrences.filter((occurrence) => occurrence.state === "overdue").length,
+    paidThisPeriodCount: occurrences.filter((occurrence) => occurrence.state === "paid").length,
+    schedules,
+    upcomingCount: occurrences.filter((occurrence) => occurrence.state === "upcoming").length,
+  };
+}
+
+export function listBillTransactionMatches(occurrenceId: string): BillTransactionMatchRecord[] {
+  const occurrence = sqliteDatabase.getFirstSync<{
+    amountMinor: number;
+    billId: string;
+    categoryId: string | null;
+    currency: string;
+    dueAt: number;
+    expectedMerchant: string;
+    merchantPattern: string | null;
+  }>(
+    `SELECT
+      o.amount_minor AS amountMinor,
+      o.bill_id AS billId,
+      b.category_id AS categoryId,
+      o.currency,
+      o.due_at AS dueAt,
+      b.expected_merchant AS expectedMerchant,
+      b.merchant_pattern AS merchantPattern
+     FROM bill_occurrences o
+     INNER JOIN bills b ON b.id = o.bill_id
+     WHERE o.id = ?
+     LIMIT 1`,
+    [occurrenceId],
+  );
+
+  if (!occurrence) {
+    return [];
+  }
+
+  const windowStart = occurrence.dueAt - 14 * 86_400_000;
+  const windowEnd = occurrence.dueAt + 14 * 86_400_000;
+  const merchantNeedle = normalizeMatchText(
+    occurrence.merchantPattern || occurrence.expectedMerchant,
+  );
+  const rows = sqliteDatabase.getAllSync<TransactionRecord>(
+    `SELECT
+      t.id,
+      t.account_label AS accountLabel,
+      t.amount_minor AS amountMinor,
+      t.category_id AS categoryId,
+      COALESCE(c.color, '#4b5563') AS categoryColor,
+      COALESCE(c.label, 'Other') AS categoryLabel,
+      t.created_at AS createdAt,
+      t.currency,
+      t.deleted_at AS deletedAt,
+      t.direction,
+      t.merchant,
+      t.notes,
+      t.reference,
+      t.source,
+      'local' AS syncStatus,
+      t.transaction_at AS transactionAt,
+      t.updated_at AS updatedAt,
+      t.version
+     FROM transactions t
+     LEFT JOIN categories c ON c.id = t.category_id
+     WHERE t.user_id = ?
+       AND t.deleted_at IS NULL
+       AND t.direction = 'expense'
+       AND t.transaction_at BETWEEN ? AND ?
+       AND NOT EXISTS (
+         SELECT 1 FROM bill_occurrences linked
+         WHERE linked.linked_transaction_id = t.id
+           AND linked.id != ?
+       )
+     ORDER BY t.transaction_at DESC
+     LIMIT 40`,
+    [DEFAULT_USER_ID, windowStart, windowEnd, occurrenceId],
+  );
+
+  return rows
+    .map((transaction) => {
+      let confidence = 0;
+      const reasons: string[] = [];
+      const merchant = normalizeMatchText(transaction.merchant);
+
+      if (merchantNeedle && (merchant.includes(merchantNeedle) || merchantNeedle.includes(merchant))) {
+        confidence += 40;
+        reasons.push("merchant");
+      }
+
+      const amountDelta = Math.abs(transaction.amountMinor - occurrence.amountMinor);
+      const amountTolerance = Math.max(Math.round(occurrence.amountMinor * 0.05), 100);
+      if (amountDelta === 0) {
+        confidence += 35;
+        reasons.push("exact amount");
+      } else if (amountDelta <= amountTolerance) {
+        confidence += 24;
+        reasons.push("similar amount");
+      }
+
+      if (occurrence.categoryId && transaction.categoryId === occurrence.categoryId) {
+        confidence += 10;
+        reasons.push("category");
+      }
+
+      const distance = Math.abs(daysBetween(transaction.transactionAt, occurrence.dueAt));
+      if (distance <= 1) {
+        confidence += 15;
+        reasons.push("due date");
+      } else if (distance <= 7) {
+        confidence += 8;
+        reasons.push("near due date");
+      }
+
+      return {
+        amount: formatSignedMoney(transaction.amountMinor, transaction.currency, transaction.direction),
+        amountMinor: transaction.amountMinor,
+        categoryLabel: transaction.categoryLabel,
+        confidence: Math.min(confidence, 100),
+        currency: transaction.currency,
+        id: transaction.id,
+        merchant: transaction.merchant,
+        meta: formatTransactionMetaDate(transaction.transactionAt),
+        reason: reasons.length ? reasons.join(", ") : "within due window",
+        transactionAt: transaction.transactionAt,
+      };
+    })
+    .filter((match) => match.confidence >= 20)
+    .sort((left, right) => right.confidence - left.confidence)
+    .slice(0, 10);
+}
+
+export function createBill(input: CreateBillInput) {
+  const amountMinor = toAmountMinor(input.amount);
+  if (amountMinor <= 0) {
+    throw new Error("Bill amount must be greater than zero.");
+  }
+
+  if (!input.name.trim() || !input.expectedMerchant.trim()) {
+    throw new Error("Bill name and merchant are required.");
+  }
+
+  const id = createId("bill");
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `INSERT INTO bills (
+        id, user_id, name, expected_merchant, merchant_pattern, amount_minor,
+        currency, category_id, account_label, cadence, start_at, end_at,
+        occurrence_count, notes, status, created_at, updated_at, deleted_at,
+        version, server_updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL, 1, NULL)`,
+      [
+        id,
+        DEFAULT_USER_ID,
+        input.name.trim(),
+        input.expectedMerchant.trim(),
+        input.merchantPattern?.trim() || null,
+        amountMinor,
+        input.currency ?? "KES",
+        input.categoryId || null,
+        input.accountLabel?.trim() || "Primary Wallet",
+        input.cadence,
+        input.startAt,
+        input.endAt ?? null,
+        input.occurrenceCount ?? null,
+        input.notes?.trim() || null,
+        now,
+        now,
+      ],
+    );
+
+    writeSyncMetadata({
+      entityId: id,
+      entityType: "bill",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+  });
+
+  generateUpcomingBillOccurrences();
+  return id;
+}
+
+export function updateBill(id: string, input: UpdateBillInput) {
+  const current = getBillById(id);
+  if (!current) {
+    throw new Error("Bill not found.");
+  }
+
+  const amountMinor = input.amount ? toAmountMinor(input.amount) : current.amountMinor;
+  if (amountMinor <= 0) {
+    throw new Error("Bill amount must be greater than zero.");
+  }
+
+  const now = Date.now();
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE bills
+       SET name = ?,
+           expected_merchant = ?,
+           merchant_pattern = ?,
+           amount_minor = ?,
+           currency = ?,
+           category_id = ?,
+           account_label = ?,
+           cadence = ?,
+           start_at = ?,
+           end_at = ?,
+           occurrence_count = ?,
+           notes = ?,
+           updated_at = ?,
+           version = version + 1
+       WHERE id = ?`,
+      [
+        input.name?.trim() || current.name,
+        input.expectedMerchant?.trim() || current.expectedMerchant,
+        input.merchantPattern === undefined
+          ? current.merchantPattern
+          : input.merchantPattern?.trim() || null,
+        amountMinor,
+        input.currency || current.currency,
+        input.categoryId === undefined ? current.categoryId : input.categoryId || null,
+        input.accountLabel?.trim() || current.accountLabel,
+        input.cadence || current.cadence,
+        input.startAt ?? current.startAt,
+        input.endAt === undefined ? current.endAt : input.endAt,
+        input.occurrenceCount === undefined ? current.occurrenceCount : input.occurrenceCount,
+        input.notes === undefined ? current.notes : input.notes?.trim() || null,
+        now,
+        id,
+      ],
+    );
+
+    sqliteDatabase.runSync(
+      `DELETE FROM bill_occurrences
+       WHERE bill_id = ?
+         AND status = 'due'`,
+      [id],
+    );
+
+    writeSyncMetadata({
+      entityId: id,
+      entityType: "bill",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+  });
+
+  generateUpcomingBillOccurrences();
+}
+
+export function archiveBill(id: string) {
+  const current = getBillById(id);
+  if (!current) {
+    return;
+  }
+
+  const now = Date.now();
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE bills
+       SET status = 'archived',
+           deleted_at = ?,
+           updated_at = ?,
+           version = version + 1
+       WHERE id = ?`,
+      [now, now, id],
+    );
+
+    writeSyncMetadata({
+      entityId: id,
+      entityType: "bill",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+  });
+}
+
+export function linkBillOccurrenceToTransaction(input: {
+  occurrenceId: string;
+  transactionId: string;
+}) {
+  const transaction = getTransactionById(input.transactionId);
+  if (!transaction || transaction.direction !== "expense") {
+    throw new Error("Choose an expense transaction to confirm this bill payment.");
+  }
+
+  const occurrence = sqliteDatabase.getFirstSync<{ id: string }>(
+    `SELECT id FROM bill_occurrences WHERE id = ? LIMIT 1`,
+    [input.occurrenceId],
+  );
+  if (!occurrence) {
+    throw new Error("Bill occurrence not found.");
+  }
+
+  const suggestion = listBillTransactionMatches(input.occurrenceId)
+    .find((match) => match.id === input.transactionId);
+  const now = Date.now();
+
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE bill_occurrences
+       SET status = 'paid',
+           linked_transaction_id = ?,
+           paid_at = ?,
+           match_confidence = ?,
+           match_reason = ?,
+           updated_at = ?
+       WHERE id = ?`,
+      [
+        input.transactionId,
+        transaction.transactionAt,
+        suggestion?.confidence ?? null,
+        suggestion?.reason ?? "manual confirmation",
+        now,
+        input.occurrenceId,
+      ],
+    );
+
+    writeSyncMetadata({
+      entityId: input.occurrenceId,
+      entityType: "bill_occurrence",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
+  });
+}
+
+export function unlinkBillOccurrencePayment(occurrenceId: string) {
+  const now = Date.now();
+  sqliteDatabase.withTransactionSync(() => {
+    sqliteDatabase.runSync(
+      `UPDATE bill_occurrences
+       SET status = 'due',
+           linked_transaction_id = NULL,
+           paid_at = NULL,
+           match_confidence = NULL,
+           match_reason = NULL,
+           updated_at = ?
+       WHERE id = ?`,
+      [now, occurrenceId],
+    );
+
+    writeSyncMetadata({
+      entityId: occurrenceId,
+      entityType: "bill_occurrence",
+      syncStatus: "pending",
+      updatedAt: now,
+    });
   });
 }
 
@@ -1457,11 +2127,16 @@ export function deleteCategory(id: string) {
           AND deleted_at IS NULL
       ) + (
         SELECT COUNT(*)
+        FROM bills
+        WHERE category_id = ?
+          AND deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*)
         FROM sms_transaction_candidates
         WHERE category_id = ?
           AND status = 'pending'
       ) AS count`,
-    [id, id, id],
+    [id, id, id, id],
   )?.count ?? 0;
 
   if (usage > 0) {
@@ -1714,6 +2389,7 @@ export function getFinanceSnapshot(args: {
       supportsStreaming: args.aiSupportsStreaming,
     }),
     attachments: listAttachments(),
+    bills: getBillsSnapshot(),
     budgetAllocations: getBudgetAllocations(),
     budgetOverview: getBudgetOverview(),
     budgets: listBudgets(),
@@ -2291,18 +2967,24 @@ export function getSmsCandidateFeedbackContext(id: string) {
   return (
     sqliteDatabase.getFirstSync<{
       aiJobId: string | null;
+      amountMinor: number;
       categoryId: string | null;
       categoryLabel: string;
+      classificationConfidence: number | null;
       classificationSource: "rule" | "merchant_memory" | "ai" | "user";
+      direction: "expense" | "income";
       merchant: string;
       merchantKey: string | null;
       suggestedCategoryLabel: string | null;
     }>(
       `SELECT
         c.ai_job_id AS aiJobId,
+        c.amount_minor AS amountMinor,
         c.category_id AS categoryId,
         COALESCE(cat.label, 'Other') AS categoryLabel,
+        c.classification_confidence AS classificationConfidence,
         c.classification_source AS classificationSource,
+        c.direction AS direction,
         c.merchant AS merchant,
         c.merchant_key AS merchantKey,
         c.suggested_category_label AS suggestedCategoryLabel

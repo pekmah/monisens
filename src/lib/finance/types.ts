@@ -10,11 +10,16 @@ export type OutboxOperation = "upsert" | "delete";
 export type SyncEntityType =
   | "transaction"
   | "budget"
+  | "bill"
+  | "bill_occurrence"
   | "category"
   | "import"
   | "attachment";
 export type TransactionDirection = "expense" | "income";
 export type TransactionSource = "manual" | "sms" | "statement" | "import";
+export type BillCadence = "once" | "weekly" | "monthly" | "yearly";
+export type BillStatus = "active" | "archived";
+export type BillOccurrenceStatus = "due" | "paid" | "skipped";
 
 export type SyncTrigger =
   | "launch"
@@ -206,13 +211,19 @@ export type AiJobRecord = {
 export type AiJobItemRecord = {
   id: string;
   itemId: string;
-  itemType: "sms_message" | "sms_candidate";
+  itemType: "sms_message" | "sms_candidate" | "feedback_event";
   jobId: string;
   lastError: string | null;
   resultJson: string | null;
   status: AiJobItemStatus;
   updatedAt: number;
 };
+
+export type AiFeedbackCorrectionType =
+  | "confirmed"
+  | "corrected"
+  | "manual_teach"
+  | "dismissed";
 
 export type CategoryProposalRecord = {
   id: string;
@@ -255,6 +266,8 @@ export type AiSnapshot = {
   activeBatchJob: AiJobRecord | null;
   backend: AiBackendAvailability;
   failedJobCount: number;
+  feedbackEventCount: number;
+  merchantMemoryCount: number;
   pendingCategoryProposals: CategoryProposalRecord[];
   pendingJobCount: number;
   recentJobs: AiJobRecord[];
@@ -299,6 +312,93 @@ export type BudgetOverviewRecord = {
   safePerDayMinor: number;
   spentMinor: number;
 };
+
+export type BillRecord = {
+  accountLabel: string;
+  amountMinor: number;
+  cadence: BillCadence;
+  categoryColor: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  createdAt: number;
+  currency: string;
+  deletedAt: number | null;
+  endAt: number | null;
+  expectedMerchant: string;
+  id: string;
+  merchantPattern: string | null;
+  name: string;
+  notes: string | null;
+  occurrenceCount: number | null;
+  startAt: number;
+  status: BillStatus;
+  syncStatus: SyncStatus;
+  updatedAt: number;
+  version: number;
+};
+
+export type BillOccurrenceRecord = {
+  amountMinor: number;
+  billId: string;
+  billName: string;
+  categoryColor: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  currency: string;
+  dueAt: number;
+  id: string;
+  linkedTransactionAmountMinor: number | null;
+  linkedTransactionAt: number | null;
+  linkedTransactionId: string | null;
+  linkedTransactionMerchant: string | null;
+  matchConfidence: number | null;
+  matchReason: string | null;
+  paidAt: number | null;
+  periodKey: string;
+  status: BillOccurrenceStatus;
+  state: "overdue" | "due_soon" | "upcoming" | "paid";
+  updatedAt: number;
+};
+
+export type BillTransactionMatchRecord = {
+  amount: string;
+  amountMinor: number;
+  categoryLabel: string;
+  confidence: number;
+  currency: string;
+  id: string;
+  merchant: string;
+  meta: string;
+  reason: string;
+  transactionAt: number;
+};
+
+export type BillsSnapshot = {
+  dueSoonCount: number;
+  monthlyImpactMinor: number;
+  occurrences: BillOccurrenceRecord[];
+  overdueCount: number;
+  paidThisPeriodCount: number;
+  schedules: BillRecord[];
+  upcomingCount: number;
+};
+
+export type CreateBillInput = {
+  accountLabel?: string;
+  amount: string;
+  cadence: BillCadence;
+  categoryId?: string | null;
+  currency?: string;
+  endAt?: number | null;
+  expectedMerchant: string;
+  merchantPattern?: string | null;
+  name: string;
+  notes?: string | null;
+  occurrenceCount?: number | null;
+  startAt: number;
+};
+
+export type UpdateBillInput = Partial<CreateBillInput>;
 
 export type ImportRecord = {
   createdAt: number;
@@ -407,6 +507,8 @@ export type InsightAllocationRecord = {
 export type InsightSubscriptionRecord = {
   accent: string;
   amount: string;
+  amountMinor: number;
+  categoryId: string | null;
   id: string;
   meta: string;
   title: string;
@@ -452,6 +554,7 @@ export type SyncSnapshot = {
 export type FinanceSnapshot = {
   ai: AiSnapshot;
   attachments: AttachmentRecord[];
+  bills: BillsSnapshot;
   budgetAllocations: BudgetAllocationRecord[];
   budgetOverview: BudgetOverviewRecord | null;
   budgets: BudgetRecord[];

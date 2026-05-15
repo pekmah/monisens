@@ -9,6 +9,7 @@ import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import {
+  exportBillsCsv,
   exportFinanceBackup,
   pickFinanceBackupForRestore,
   restoreFinanceBackup,
@@ -18,7 +19,7 @@ import type {
   FinanceBackupSummary,
 } from "@/lib/finance/backup-schema";
 
-type BackupTask = "export" | "restore" | null;
+type BackupTask = "bills-csv" | "export" | "restore" | null;
 
 type PendingRestore = {
   payload: FinanceBackupPayload;
@@ -89,6 +90,29 @@ export function BackupCard() {
       Alert.alert(
         "Restore unavailable",
         error instanceof Error ? error.message : "The selected backup could not be opened.",
+      );
+    } finally {
+      setActiveTask(null);
+    }
+  }
+
+  async function handleBillsCsvExport() {
+    if (isBusy) {
+      return;
+    }
+
+    setActiveTask("bills-csv");
+
+    try {
+      const result = await exportBillsCsv();
+      Alert.alert(
+        "Bills CSV ready",
+        `${formatCount(result.rowCount)} bill schedule and payment row(s) were prepared for saving.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Bills export failed",
+        error instanceof Error ? error.message : "The bills CSV could not be created.",
       );
     } finally {
       setActiveTask(null);
@@ -207,6 +231,16 @@ export function BackupCard() {
       ) : null}
 
       <View style={styles.actions}>
+        <AppPressable onPress={handleBillsCsvExport} style={styles.secondaryAction}>
+          {activeTask === "bills-csv" ? (
+            <ActivityIndicator color={theme.colors.onPrimary} size="small" />
+          ) : (
+            <Feather color={theme.colors.onPrimary} name="file-text" size={18} />
+          )}
+          <AppText color="onPrimary" style={styles.secondaryActionText} variant="labelMd">
+            Bills CSV
+          </AppText>
+        </AppPressable>
         <AppPressable onPress={handlePickRestore} style={styles.secondaryAction}>
           {activeTask === "restore" ? (
             <ActivityIndicator color={theme.colors.onPrimary} size="small" />

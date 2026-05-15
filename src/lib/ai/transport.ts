@@ -56,10 +56,21 @@ export type AiTransport = {
     userId: string;
   }) => Promise<RemoteBatchSnapshot>;
   submitFeedback: (input: {
+    aiConfidence?: number | null;
     aiSuggestedCategory: string | null;
+    amountMinor?: number | null;
+    classificationSource?: string | null;
+    clientFeedbackId?: string | null;
+    correctionType?: "confirmed" | "corrected" | "manual_teach" | "dismissed";
+    direction?: "expense" | "income" | null;
+    entityId?: string | null;
+    entityType?: "sms_candidate" | "transaction" | "bill_payment";
     finalCategory: string;
+    finalCategoryId?: string | null;
     merchantKey: string | null;
     merchantName: string | null;
+    oldCategory?: string | null;
+    oldCategoryId?: string | null;
     userId: string;
     wasAiCorrect: boolean;
   }) => Promise<void>;

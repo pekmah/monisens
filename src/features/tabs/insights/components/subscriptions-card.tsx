@@ -10,10 +10,14 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import type { InsightSubscriptionRecord } from "@/lib/finance";
 
 export type SubscriptionsCardProps = {
+  onSetUpBill?: (subscription: InsightSubscriptionRecord) => void;
   subscriptions: InsightSubscriptionRecord[];
 };
 
-export function SubscriptionsCard({ subscriptions }: SubscriptionsCardProps) {
+export function SubscriptionsCard({
+  onSetUpBill,
+  subscriptions,
+}: SubscriptionsCardProps) {
   const theme = useAppTheme();
 
   return (
@@ -24,7 +28,7 @@ export function SubscriptionsCard({ subscriptions }: SubscriptionsCardProps) {
         </AppText>
         <AppPressable disabled>
           <AppText color="secondary" style={styles.manage} variant="labelMd">
-            Derived
+            Suggestions
           </AppText>
         </AppPressable>
       </View>
@@ -62,6 +66,19 @@ export function SubscriptionsCard({ subscriptions }: SubscriptionsCardProps) {
               <AppText style={styles.amount} variant="labelMd">
                 {subscription.amount}
               </AppText>
+              {onSetUpBill ? (
+                <AppPressable
+                  onPress={() => onSetUpBill(subscription)}
+                  style={[
+                    styles.setupButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                >
+                  <AppText color="onPrimary" style={styles.setupText} variant="labelMd">
+                    Set up
+                  </AppText>
+                </AppPressable>
+              ) : null}
             </View>
           )}
         />
@@ -130,6 +147,18 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: Spacing.sm,
+  },
+  setupButton: {
+    alignItems: "center",
+    borderRadius: Radii.sm,
+    justifyContent: "center",
+    minHeight: Sizes["7xl"],
+    paddingHorizontal: Spacing.md,
+  },
+  setupText: {
+    fontFamily: font.bold,
+    fontSize: FontSizes.xs,
+    lineHeight: LineHeights.xs,
   },
   subscriptionTitle: {
     fontFamily: font.semiBold,

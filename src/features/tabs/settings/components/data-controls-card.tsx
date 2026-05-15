@@ -14,11 +14,23 @@ export function DataControlsCard() {
 
   const transactionCount = snapshot?.transactions.length ?? 0;
   const budgetCount = snapshot?.budgets.length ?? 0;
+  const billCount = snapshot?.bills.schedules.length ?? 0;
+  const billOccurrenceCount = snapshot?.bills.occurrences.length ?? 0;
   const categoryCount = snapshot?.categories.length ?? 0;
   const importCount = snapshot?.imports.length ?? 0;
   const attachmentCount = snapshot?.attachments.length ?? 0;
+  const feedbackEventCount = snapshot?.ai.feedbackEventCount ?? 0;
+  const merchantMemoryCount = snapshot?.ai.merchantMemoryCount ?? 0;
   const totalFinanceRows =
-    transactionCount + budgetCount + categoryCount + importCount + attachmentCount;
+    transactionCount
+    + budgetCount
+    + billCount
+    + billOccurrenceCount
+    + categoryCount
+    + importCount
+    + attachmentCount
+    + feedbackEventCount
+    + merchantMemoryCount;
 
   return (
     <SurfaceCard style={styles.card}>
@@ -45,6 +57,7 @@ export function DataControlsCard() {
         <MetricTile label="Records" value={formatCount(totalFinanceRows)} />
         <MetricTile label="Transactions" value={formatCount(transactionCount)} />
         <MetricTile label="Budgets" value={formatCount(budgetCount)} />
+        <MetricTile label="AI rules" value={formatCount(merchantMemoryCount)} />
       </View>
 
       <View
@@ -71,8 +84,10 @@ export function DataControlsCard() {
             </AppText>
             <AppText color="mutedText" style={styles.controlMeta} variant="bodyMd">
               {formatCount(transactionCount)} transactions, {formatCount(budgetCount)} budgets,{" "}
+              {formatCount(billCount)} bills, {formatCount(billOccurrenceCount)} bill occurrence(s),{" "}
               {formatCount(categoryCount)} categories, {formatCount(importCount)} imports, and{" "}
-              {formatCount(attachmentCount)} attachments are stored on this device.
+              {formatCount(attachmentCount)} attachments are stored on this device. AI learning includes{" "}
+              {formatCount(merchantMemoryCount)} merchant rule(s) and {formatCount(feedbackEventCount)} feedback event(s).
             </AppText>
           </View>
         </View>

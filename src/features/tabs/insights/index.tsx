@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
@@ -10,10 +11,23 @@ import {
   SubscriptionsCard,
   TrajectoryCard,
 } from "@/features/tabs/insights/components";
-import { useFinance } from "@/lib/finance";
+import { type InsightSubscriptionRecord, useFinance } from "@/lib/finance";
 
 export default function InsightsScreen() {
   const { snapshot } = useFinance();
+
+  function handleSetUpBill(subscription: InsightSubscriptionRecord) {
+    const params = new URLSearchParams({
+      amount: String(subscription.amountMinor / 100),
+      merchant: subscription.title,
+    });
+
+    if (subscription.categoryId) {
+      params.set("categoryId", subscription.categoryId);
+    }
+
+    router.push(`/bills/new?${params.toString()}` as never);
+  }
 
   return (
     <TabScreen>
@@ -37,7 +51,10 @@ export default function InsightsScreen() {
           <CategoryAllocationCard allocations={snapshot?.insightAllocations ?? []} />
         </View>
 
-        <SubscriptionsCard subscriptions={snapshot?.insightSubscriptions ?? []} />
+        <SubscriptionsCard
+          onSetUpBill={handleSetUpBill}
+          subscriptions={snapshot?.insightSubscriptions ?? []}
+        />
       </ScrollView>
     </TabScreen>
   );

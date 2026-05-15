@@ -52,6 +52,52 @@ CREATE TABLE IF NOT EXISTS budgets (
 CREATE INDEX IF NOT EXISTS budgets_user_month_idx
   ON budgets(user_id, month_key);
 
+CREATE TABLE IF NOT EXISTS bills (
+  id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  expected_merchant TEXT NOT NULL,
+  merchant_pattern TEXT,
+  amount_minor INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  category_id TEXT,
+  account_label TEXT NOT NULL,
+  cadence TEXT NOT NULL,
+  start_at INTEGER NOT NULL,
+  end_at INTEGER,
+  occurrence_count INTEGER,
+  notes TEXT,
+  status TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER,
+  version INTEGER NOT NULL,
+  server_updated_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS bills_user_status_idx
+  ON bills(user_id, status, start_at);
+
+CREATE TABLE IF NOT EXISTS bill_occurrences (
+  id TEXT PRIMARY KEY NOT NULL,
+  bill_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  period_key TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  amount_minor INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL,
+  linked_transaction_id TEXT,
+  paid_at INTEGER,
+  match_confidence INTEGER,
+  match_reason TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS bill_occurrences_bill_idx
+  ON bill_occurrences(bill_id, due_at);
+CREATE INDEX IF NOT EXISTS bill_occurrences_user_due_idx
+  ON bill_occurrences(user_id, status, due_at);
+
 CREATE TABLE IF NOT EXISTS imports (
   id TEXT PRIMARY KEY NOT NULL,
   user_id TEXT NOT NULL,
@@ -213,6 +259,32 @@ CREATE INDEX IF NOT EXISTS ai_job_items_job_idx
 CREATE INDEX IF NOT EXISTS ai_job_items_target_idx
   ON ai_job_items(item_type, item_id);
 
+CREATE TABLE IF NOT EXISTS ai_feedback_events (
+  id TEXT PRIMARY KEY NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  merchant_name TEXT,
+  merchant_key TEXT,
+  amount_minor INTEGER,
+  direction TEXT,
+  old_category_id TEXT,
+  old_category_label TEXT,
+  final_category_id TEXT,
+  final_category_label TEXT NOT NULL,
+  ai_suggested_category_label TEXT,
+  classification_source TEXT,
+  ai_confidence INTEGER,
+  correction_type TEXT NOT NULL,
+  sync_status TEXT NOT NULL,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  synced_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS ai_feedback_events_sync_idx
+  ON ai_feedback_events(sync_status, created_at);
+CREATE INDEX IF NOT EXISTS ai_feedback_events_merchant_idx
+  ON ai_feedback_events(merchant_key, created_at);
+
 CREATE TABLE IF NOT EXISTS category_proposals (
   id TEXT PRIMARY KEY NOT NULL,
   proposed_name TEXT NOT NULL,
@@ -268,8 +340,22 @@ export function applyFinanceMigrations() {
   ensureSmsSyncStateColumns();
   ensureSmsMessageSourceColumns();
   ensureSmsCandidateAiColumns();
+  ensureAiFeedbackEventColumns();
   removeSeededDemoTransactions();
   migrated = true;
+}
+
+function ensureAiFeedbackEventColumns() {
+  const columns = sqliteDatabase.getAllSync<{ name: string }>(
+    "PRAGMA table_info(ai_feedback_events)",
+  );
+  const columnNames = new Set(columns.map((column) => column.name));
+
+  if (!columnNames.has("last_error")) {
+    sqliteDatabase.execSync(
+      "ALTER TABLE ai_feedback_events ADD COLUMN last_error TEXT",
+    );
+  }
 }
 
 function removeSeededDemoTransactions() {

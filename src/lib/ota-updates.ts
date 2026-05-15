@@ -1,15 +1,18 @@
-import { HotUpdater, useHotUpdaterStore } from "@hot-updater/react-native";
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import { AppState, Platform } from "react-native";
 import { createMMKV } from "react-native-mmkv";
 
 import type { HotUpdaterOptions, RunUpdateProcessResponse } from "@hot-updater/react-native";
-import type { PropsWithChildren } from "react";
+import type { ComponentType, PropsWithChildren } from "react";
 
 export const HOT_UPDATER_BASE_URL =
   process.env.EXPO_PUBLIC_HOT_UPDATER_BASE_URL ??
   "https://monisense.ericpekmah.workers.dev/api/check-update";
 const OTA_STATUS_KEY = "ota.status";
+type HotUpdaterModule = typeof import("@hot-updater/react-native");
+const hotUpdaterModule: HotUpdaterModule | null =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Platform.OS === "web" ? null : require("@hot-updater/react-native");
 
 export type OtaUpdateStatus = {
   lastAppliedAt: number | null;
@@ -41,6 +44,16 @@ const initialStatus: OtaUpdateStatus = {
 const nativeStorage = Platform.OS === "web" ? null : createMMKV();
 
 export const hotUpdaterConfigured = Boolean(HOT_UPDATER_BASE_URL);
+
+export function withHotUpdater<TProps extends object>(
+  component: ComponentType<TProps>,
+) {
+  return (
+    hotUpdaterModule?.HotUpdater.wrap(getHotUpdaterOptions())(
+      component as ComponentType<object>,
+    ) as ComponentType<TProps> | undefined
+  ) ?? component;
+}
 
 export function getHotUpdaterOptions(): HotUpdaterOptions {
   return {
@@ -84,7 +97,19 @@ export function getHotUpdaterOptions(): HotUpdaterOptions {
 }
 
 export function OtaUpdateController({ children }: PropsWithChildren) {
-  const isUpdateDownloaded = useHotUpdaterStore(
+  if (!hotUpdaterModule) {
+    return children;
+  }
+
+  return createElement(NativeOtaUpdateController, { module: hotUpdaterModule }, children);
+}
+
+function NativeOtaUpdateController({
+  children,
+  module,
+}: PropsWithChildren<{ module: HotUpdaterModule }>) {
+  const hotUpdater = module.HotUpdater;
+  const isUpdateDownloaded = module.useHotUpdaterStore(
     (state) => state.isUpdateDownloaded,
   );
 
@@ -102,7 +127,7 @@ export function OtaUpdateController({ children }: PropsWithChildren) {
         lastAppliedAt: Date.now(),
         status: "applying",
       });
-      void HotUpdater.reload();
+      void hotUpdater.reload();
     };
 
     applyIfBackgrounded(AppState.currentState);
@@ -115,16 +140,15 @@ export function OtaUpdateController({ children }: PropsWithChildren) {
     return () => {
       subscription.remove();
     };
-  }, [isUpdateDownloaded]);
+  }, [hotUpdater, isUpdateDownloaded]);
 
   return children;
 }
 
 export function useOtaUpdateStatus() {
-  const progress = useHotUpdaterStore((state) => state.progress);
-  const isUpdateDownloaded = useHotUpdaterStore(
-    (state) => state.isUpdateDownloaded,
-  );
+  const progress = hotUpdaterModule?.useHotUpdaterStore((state) => state.progress) ?? 0;
+  const isUpdateDownloaded =
+    hotUpdaterModule?.useHotUpdaterStore((state) => state.isUpdateDownloaded) ?? false;
   const [storedStatus, setStoredStatus] = useState(getStoredOtaStatus);
 
   useEffect(() => {

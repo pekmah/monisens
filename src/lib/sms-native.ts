@@ -1,7 +1,4 @@
-import {
-  requireOptionalNativeModule,
-  type EventSubscription,
-} from "expo-modules-core";
+import { requireOptionalNativeModule } from "expo";
 import { PermissionsAndroid, Platform } from "react-native";
 
 export type NativeSmsMessage = {
@@ -19,6 +16,10 @@ type SmsNativeModule = {
 };
 
 const SMS_EVENT_NAME = "MonisensSmsReceived";
+
+type EventSubscription = {
+  remove: () => void;
+};
 
 type SmsEvents = {
   MonisensSmsReceived: (message: NativeSmsMessage) => void;

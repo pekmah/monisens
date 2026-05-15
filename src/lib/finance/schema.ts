@@ -63,6 +63,65 @@ export const budgetsTable = sqliteTable(
   ],
 );
 
+export const billsTable = sqliteTable(
+  "bills",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    expectedMerchant: text("expected_merchant").notNull(),
+    merchantPattern: text("merchant_pattern"),
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency").notNull(),
+    categoryId: text("category_id"),
+    accountLabel: text("account_label").notNull(),
+    cadence: text("cadence", {
+      enum: ["once", "weekly", "monthly", "yearly"],
+    }).notNull(),
+    startAt: integer("start_at").notNull(),
+    endAt: integer("end_at"),
+    occurrenceCount: integer("occurrence_count"),
+    notes: text("notes"),
+    status: text("status", {
+      enum: ["active", "archived"],
+    }).notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    deletedAt: integer("deleted_at"),
+    version: integer("version").notNull(),
+    serverUpdatedAt: integer("server_updated_at"),
+  },
+  (table) => [
+    index("bills_user_status_idx").on(table.userId, table.status, table.startAt),
+  ],
+);
+
+export const billOccurrencesTable = sqliteTable(
+  "bill_occurrences",
+  {
+    id: text("id").primaryKey(),
+    billId: text("bill_id").notNull(),
+    userId: text("user_id").notNull(),
+    periodKey: text("period_key").notNull(),
+    dueAt: integer("due_at").notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status", {
+      enum: ["due", "paid", "skipped"],
+    }).notNull(),
+    linkedTransactionId: text("linked_transaction_id"),
+    paidAt: integer("paid_at"),
+    matchConfidence: integer("match_confidence"),
+    matchReason: text("match_reason"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    index("bill_occurrences_bill_idx").on(table.billId, table.dueAt),
+    index("bill_occurrences_user_due_idx").on(table.userId, table.status, table.dueAt),
+  ],
+);
+
 export const importsTable = sqliteTable(
   "imports",
   {
@@ -266,7 +325,7 @@ export const aiJobItemsTable = sqliteTable(
     id: text("id").primaryKey(),
     jobId: text("job_id").notNull(),
     itemType: text("item_type", {
-      enum: ["sms_message", "sms_candidate"],
+      enum: ["sms_message", "sms_candidate", "feedback_event"],
     }).notNull(),
     itemId: text("item_id").notNull(),
     status: text("status", {
@@ -280,6 +339,41 @@ export const aiJobItemsTable = sqliteTable(
   (table) => [
     index("ai_job_items_job_idx").on(table.jobId, table.status),
     index("ai_job_items_target_idx").on(table.itemType, table.itemId),
+  ],
+);
+
+export const aiFeedbackEventsTable = sqliteTable(
+  "ai_feedback_events",
+  {
+    id: text("id").primaryKey(),
+    entityType: text("entity_type", {
+      enum: ["sms_candidate", "transaction", "bill_payment"],
+    }).notNull(),
+    entityId: text("entity_id").notNull(),
+    merchantName: text("merchant_name"),
+    merchantKey: text("merchant_key"),
+    amountMinor: integer("amount_minor"),
+    direction: text("direction", { enum: ["expense", "income"] }),
+    oldCategoryId: text("old_category_id"),
+    oldCategoryLabel: text("old_category_label"),
+    finalCategoryId: text("final_category_id"),
+    finalCategoryLabel: text("final_category_label").notNull(),
+    aiSuggestedCategoryLabel: text("ai_suggested_category_label"),
+    classificationSource: text("classification_source"),
+    aiConfidence: integer("ai_confidence"),
+    correctionType: text("correction_type", {
+      enum: ["confirmed", "corrected", "manual_teach", "dismissed"],
+    }).notNull(),
+    syncStatus: text("sync_status", {
+      enum: ["pending", "synced", "failed"],
+    }).notNull(),
+    lastError: text("last_error"),
+    createdAt: integer("created_at").notNull(),
+    syncedAt: integer("synced_at"),
+  },
+  (table) => [
+    index("ai_feedback_events_sync_idx").on(table.syncStatus, table.createdAt),
+    index("ai_feedback_events_merchant_idx").on(table.merchantKey, table.createdAt),
   ],
 );
 

@@ -22,6 +22,8 @@ import {
   markAiJobItemRunning,
   markAiJobProgress,
   markAiJobRunning,
+  markAiFeedbackEventFailed,
+  markAiFeedbackEventSynced,
   updateAiJobPayload,
   updateAiJobFromBackend,
   upsertCategoryProposal,
@@ -369,15 +371,39 @@ async function processClassifyCandidateItem(candidateId: string) {
 
 async function processFeedbackItem(payloadJson: string) {
   const payload = JSON.parse(payloadJson) as {
+    aiConfidence?: number | null;
     aiSuggestedCategory: string | null;
+    amountMinor?: number | null;
+    classificationSource?: string | null;
+    clientFeedbackId?: string | null;
+    correctionType?: "confirmed" | "corrected" | "manual_teach" | "dismissed";
+    direction?: "expense" | "income" | null;
+    entityId?: string | null;
+    entityType?: "sms_candidate" | "transaction" | "bill_payment";
     finalCategory: string;
+    finalCategoryId?: string | null;
     merchantKey: string | null;
     merchantName: string | null;
+    oldCategory?: string | null;
+    oldCategoryId?: string | null;
     userId: string;
     wasAiCorrect: boolean;
   };
 
-  await aiTransport.submitFeedback(payload);
+  try {
+    await aiTransport.submitFeedback(payload);
+    if (payload.clientFeedbackId) {
+      markAiFeedbackEventSynced(payload.clientFeedbackId);
+    }
+  } catch (error) {
+    if (payload.clientFeedbackId) {
+      markAiFeedbackEventFailed(
+        payload.clientFeedbackId,
+        error instanceof Error ? error.message : "Feedback sync failed.",
+      );
+    }
+    throw error;
+  }
 }
 
 async function syncRemoteAiJob(jobId: string) {

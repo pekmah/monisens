@@ -2,6 +2,7 @@ import { normalizeCategoryProposalName, normalizeLabelKey, normalizeMerchantKey 
 import { DEFAULT_USER_ID } from "@/lib/finance/constants";
 import { sqliteDatabase } from "@/lib/finance/database";
 import type {
+  AiFeedbackCorrectionType,
   AiBackendAvailability,
   AiJobItemRecord,
   AiJobRecord,
@@ -48,6 +49,32 @@ CREATE INDEX IF NOT EXISTS ai_job_items_job_idx
 CREATE INDEX IF NOT EXISTS ai_job_items_target_idx
   ON ai_job_items(item_type, item_id);
 
+CREATE TABLE IF NOT EXISTS ai_feedback_events (
+  id TEXT PRIMARY KEY NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  merchant_name TEXT,
+  merchant_key TEXT,
+  amount_minor INTEGER,
+  direction TEXT,
+  old_category_id TEXT,
+  old_category_label TEXT,
+  final_category_id TEXT,
+  final_category_label TEXT NOT NULL,
+  ai_suggested_category_label TEXT,
+  classification_source TEXT,
+  ai_confidence INTEGER,
+  correction_type TEXT NOT NULL,
+  sync_status TEXT NOT NULL,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  synced_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS ai_feedback_events_sync_idx
+  ON ai_feedback_events(sync_status, created_at);
+CREATE INDEX IF NOT EXISTS ai_feedback_events_merchant_idx
+  ON ai_feedback_events(merchant_key, created_at);
+
 CREATE TABLE IF NOT EXISTS category_proposals (
   id TEXT PRIMARY KEY NOT NULL,
   proposed_name TEXT NOT NULL,
@@ -77,7 +104,7 @@ let aiTablesEnsured = false;
 
 export function createAiJob(input: {
   itemIds: string[];
-  itemType: "sms_message" | "sms_candidate";
+  itemType: "sms_message" | "sms_candidate" | "feedback_event";
   jobType: AiJobType;
   payload?: Record<string, unknown>;
   scope: AiJobScope;
@@ -112,6 +139,104 @@ export function createAiJob(input: {
   });
 
   return jobId;
+}
+
+export function createAiFeedbackEvent(input: {
+  aiConfidence?: number | null;
+  aiSuggestedCategoryLabel?: string | null;
+  amountMinor?: number | null;
+  classificationSource?: string | null;
+  correctionType: AiFeedbackCorrectionType;
+  direction?: "expense" | "income" | null;
+  entityId: string;
+  entityType: "sms_candidate" | "transaction" | "bill_payment";
+  finalCategoryId?: string | null;
+  finalCategoryLabel: string;
+  merchantKey?: string | null;
+  merchantName?: string | null;
+  oldCategoryId?: string | null;
+  oldCategoryLabel?: string | null;
+}) {
+  ensureAiTables();
+  const id = createId("ai-feedback");
+  const now = Date.now();
+  sqliteDatabase.runSync(
+    `INSERT INTO ai_feedback_events (
+      id, entity_type, entity_id, merchant_name, merchant_key, amount_minor, direction,
+      old_category_id, old_category_label, final_category_id, final_category_label,
+      ai_suggested_category_label, classification_source, ai_confidence, correction_type,
+      sync_status, last_error, created_at, synced_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, ?, NULL)`,
+    [
+      id,
+      input.entityType,
+      input.entityId,
+      input.merchantName ?? null,
+      input.merchantKey ?? null,
+      input.amountMinor ?? null,
+      input.direction ?? null,
+      input.oldCategoryId ?? null,
+      input.oldCategoryLabel ?? null,
+      input.finalCategoryId ?? null,
+      input.finalCategoryLabel,
+      input.aiSuggestedCategoryLabel ?? null,
+      input.classificationSource ?? null,
+      input.aiConfidence ?? null,
+      input.correctionType,
+      now,
+    ],
+  );
+
+  createAiJob({
+    itemIds: [id],
+    itemType: "feedback_event",
+    jobType: "submit_feedback",
+    payload: {
+      aiConfidence: input.aiConfidence ?? null,
+      aiSuggestedCategory: input.aiSuggestedCategoryLabel ?? null,
+      amountMinor: input.amountMinor ?? null,
+      classificationSource: input.classificationSource ?? null,
+      clientFeedbackId: id,
+      correctionType: input.correctionType,
+      direction: input.direction ?? null,
+      entityId: input.entityId,
+      entityType: input.entityType,
+      finalCategory: input.finalCategoryLabel,
+      finalCategoryId: input.finalCategoryId ?? null,
+      merchantKey: input.merchantKey ?? null,
+      merchantName: input.merchantName ?? null,
+      oldCategory: input.oldCategoryLabel ?? null,
+      oldCategoryId: input.oldCategoryId ?? null,
+      userId: DEFAULT_USER_ID,
+      wasAiCorrect: input.correctionType === "confirmed",
+    },
+    scope: "sms_single",
+  });
+
+  return id;
+}
+
+export function markAiFeedbackEventSynced(id: string) {
+  ensureAiTables();
+  sqliteDatabase.runSync(
+    `UPDATE ai_feedback_events
+     SET sync_status = 'synced',
+         synced_at = ?,
+         last_error = NULL
+     WHERE id = ?`,
+    [Date.now(), id],
+  );
+}
+
+export function markAiFeedbackEventFailed(id: string, error: string) {
+  ensureAiTables();
+  sqliteDatabase.runSync(
+    `UPDATE ai_feedback_events
+     SET sync_status = 'failed',
+         last_error = ?
+     WHERE id = ?`,
+    [error, id],
+  );
 }
 
 export function getDueAiJobs(limit: number) {
@@ -602,17 +727,23 @@ export function rejectCategoryProposal(id: string) {
 export function getAiSnapshot(input: { isConfigured: boolean; supportsStreaming: boolean }): AiSnapshot {
   ensureAiTables();
   const counts = sqliteDatabase.getFirstSync<{
+    feedbackEventCount: number;
     failedJobCount: number;
+    merchantMemoryCount: number;
     pendingJobCount: number;
     runningJobCount: number;
   }>(
     `SELECT
+      (SELECT COUNT(*) FROM ai_feedback_events) AS feedbackEventCount,
+      (SELECT COUNT(*) FROM merchant_memory) AS merchantMemoryCount,
       COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failedJobCount,
       COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS pendingJobCount,
       COALESCE(SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END), 0) AS runningJobCount
      FROM ai_jobs`,
   ) ?? {
+    feedbackEventCount: 0,
     failedJobCount: 0,
+    merchantMemoryCount: 0,
     pendingJobCount: 0,
     runningJobCount: 0,
   };
@@ -684,6 +815,8 @@ export function getAiSnapshot(input: { isConfigured: boolean; supportsStreaming:
     activeBatchJob,
     backend,
     failedJobCount: counts.failedJobCount,
+    feedbackEventCount: counts.feedbackEventCount,
+    merchantMemoryCount: counts.merchantMemoryCount,
     pendingCategoryProposals: listPendingCategoryProposals(),
     pendingJobCount: counts.pendingJobCount,
     recentJobs,
@@ -691,7 +824,11 @@ export function getAiSnapshot(input: { isConfigured: boolean; supportsStreaming:
   };
 }
 
-function hasOpenAiJobForItem(jobType: AiJobType, itemType: "sms_message" | "sms_candidate", itemId: string) {
+function hasOpenAiJobForItem(
+  jobType: AiJobType,
+  itemType: "sms_message" | "sms_candidate" | "feedback_event",
+  itemId: string,
+) {
   ensureAiTables();
   return Boolean(
     sqliteDatabase.getFirstSync<{ id: string }>(

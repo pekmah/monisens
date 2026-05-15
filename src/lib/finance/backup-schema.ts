@@ -1,16 +1,20 @@
 export const MONISENS_BACKUP_FORMAT = "monisens.backup";
-export const MONISENS_BACKUP_FORMAT_VERSION = 1;
+export const MONISENS_BACKUP_FORMAT_VERSION = 2;
+export const SUPPORTED_BACKUP_FORMAT_VERSIONS = [1, 2] as const;
 
 export const FINANCE_BACKUP_TABLES = [
   "categories",
   "transactions",
   "budgets",
+  "bills",
+  "bill_occurrences",
   "imports",
   "attachments",
   "sms_source_profiles",
   "sms_source_matchers",
   "sms_messages",
   "sms_transaction_candidates",
+  "ai_feedback_events",
   "ignored_sms_messages",
 ] as const;
 
@@ -20,7 +24,7 @@ export type FinanceBackupPayload = {
   appVersion: string;
   createdAt: string;
   format: typeof MONISENS_BACKUP_FORMAT;
-  formatVersion: typeof MONISENS_BACKUP_FORMAT_VERSION;
+  formatVersion: (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[number];
   source: "local-sqlite";
   tables: Record<FinanceBackupTable, Record<string, unknown>[]>;
 };
@@ -29,7 +33,7 @@ export type EncryptedFinanceBackup = {
   algorithm: "AES-GCM";
   createdAt: string;
   format: typeof MONISENS_BACKUP_FORMAT;
-  formatVersion: typeof MONISENS_BACKUP_FORMAT_VERSION;
+  formatVersion: (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[number];
   keyRef: "device";
   keyVersion: 1;
   payloadEncoding: "utf8-json";
@@ -54,7 +58,9 @@ export function assertEncryptedFinanceBackup(
 
   if (
     backup.format !== MONISENS_BACKUP_FORMAT
-    || backup.formatVersion !== MONISENS_BACKUP_FORMAT_VERSION
+    || !SUPPORTED_BACKUP_FORMAT_VERSIONS.includes(
+      backup.formatVersion as (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[number],
+    )
     || backup.algorithm !== "AES-GCM"
     || backup.keyRef !== "device"
     || typeof backup.sealedData !== "string"
@@ -74,7 +80,9 @@ export function assertFinanceBackupPayload(
 
   if (
     payload.format !== MONISENS_BACKUP_FORMAT
-    || payload.formatVersion !== MONISENS_BACKUP_FORMAT_VERSION
+    || !SUPPORTED_BACKUP_FORMAT_VERSIONS.includes(
+      payload.formatVersion as (typeof SUPPORTED_BACKUP_FORMAT_VERSIONS)[number],
+    )
     || payload.source !== "local-sqlite"
     || !payload.tables
   ) {
@@ -82,6 +90,16 @@ export function assertFinanceBackupPayload(
   }
 
   for (const table of FINANCE_BACKUP_TABLES) {
+    if (
+      (
+        (payload.formatVersion === 1 && (table === "bills" || table === "bill_occurrences"))
+        || table === "ai_feedback_events"
+      )
+      && !Array.isArray(payload.tables[table])
+    ) {
+      (payload.tables as Record<string, Record<string, unknown>[]>)[table] = [];
+    }
+
     if (!Array.isArray(payload.tables[table])) {
       throw new Error(`The backup is missing ${table}.`);
     }

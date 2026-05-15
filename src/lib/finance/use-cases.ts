@@ -9,20 +9,24 @@ import {
   supportsAiStreaming,
 } from "@/lib/ai/queue";
 import {
-  createAiJob,
+  createAiFeedbackEvent,
   getAiSnapshot,
   rejectCategoryProposal,
   retryFailedAiJobs,
   upsertMerchantMemory,
 } from "@/lib/ai/repository";
-import { DEFAULT_SMS_IMPORT_LIMIT, DEFAULT_USER_ID } from "@/lib/finance/constants";
+import { normalizeMerchantKey } from "@/lib/ai/utils";
+import { DEFAULT_SMS_IMPORT_LIMIT } from "@/lib/finance/constants";
 import { applyFinanceMigrations } from "@/lib/finance/migrations";
 import {
   ensureSmsSyncStateRow,
+  archiveBill,
   approvePendingCategoryProposal,
   createSmsSourceProfile,
+  createBill,
   createCategory,
   duplicateSmsSourceProfile,
+  generateUpcomingBillOccurrences,
   getSmsCandidateFeedbackContext,
   createBudget,
   createTransaction,
@@ -31,6 +35,9 @@ import {
   ensureDefaultSmsSourceProfiles,
   deleteCategory,
   getFinanceSnapshot,
+  getBillById,
+  getCategoryLearningContext,
+  listBillTransactionMatches,
   getSmsSyncState,
   getSmsSourceProfileGroups,
   getTransactionById,
@@ -39,13 +46,17 @@ import {
   softDeleteTransaction,
   reorderSmsSourceProfiles,
   setSmsImportLimit,
+  linkBillOccurrenceToTransaction,
+  unlinkBillOccurrencePayment,
   updateCategory,
+  updateBill,
   updateSmsSourceProfile,
   updateSmsCandidateCategory,
   updateTransaction,
 } from "@/lib/finance/repository";
 import type {
   AiSnapshot,
+  CreateBillInput,
   CreateTransactionInput,
   FinanceSnapshot,
   SmsCandidatePage,
@@ -76,6 +87,7 @@ export function bootstrapFinanceStore() {
   ensureDefaultCategories();
   ensureDefaultSmsSourceProfiles();
   ensureSmsSyncStateRow();
+  generateUpcomingBillOccurrences();
 }
 
 export function loadFinanceSnapshot(input: {
@@ -84,6 +96,7 @@ export function loadFinanceSnapshot(input: {
   searchText?: string;
 }): FinanceSnapshot {
   const aiCapabilities = getAiTransportCapabilities();
+  generateUpcomingBillOccurrences();
   return getFinanceSnapshot({
     aiConfigured: aiCapabilities.isConfigured,
     aiSupportsStreaming: aiCapabilities.supportsStreaming,
@@ -93,6 +106,37 @@ export function loadFinanceSnapshot(input: {
     searchText: input.searchText,
     status: "idle",
   });
+}
+
+export function createBillUseCase(input: CreateBillInput) {
+  return createBill(input);
+}
+
+export function updateBillUseCase(id: string, input: Partial<CreateBillInput>) {
+  updateBill(id, input);
+}
+
+export function archiveBillUseCase(id: string) {
+  archiveBill(id);
+}
+
+export function loadBillByIdUseCase(id: string) {
+  return getBillById(id);
+}
+
+export function loadBillTransactionMatchesUseCase(occurrenceId: string) {
+  return listBillTransactionMatches(occurrenceId);
+}
+
+export function linkBillOccurrenceToTransactionUseCase(input: {
+  occurrenceId: string;
+  transactionId: string;
+}) {
+  linkBillOccurrenceToTransaction(input);
+}
+
+export function unlinkBillOccurrencePaymentUseCase(occurrenceId: string) {
+  unlinkBillOccurrencePayment(occurrenceId);
 }
 
 export function createBudgetUseCase(input: {
@@ -124,11 +168,50 @@ export function deleteCategoryUseCase(id: string) {
 }
 
 export function createTransactionUseCase(input: CreateTransactionInput) {
-  return createTransaction(input);
+  const id = createTransaction(input);
+  const transaction = getTransactionById(id);
+
+  if (transaction?.categoryId && transaction.merchant.trim()) {
+    queueMerchantLearningFeedback({
+      amountMinor: transaction.amountMinor,
+      correctionType: "manual_teach",
+      direction: transaction.direction,
+      entityId: id,
+      entityType: "transaction",
+      finalCategoryId: transaction.categoryId,
+      finalCategoryLabel: transaction.categoryLabel,
+      merchantName: transaction.merchant,
+    });
+  }
+
+  return id;
 }
 
 export function updateTransactionUseCase(id: string, input: Partial<CreateTransactionInput>) {
+  const before = getTransactionById(id);
   updateTransaction(id, input);
+  const after = getTransactionById(id);
+
+  if (
+    before
+    && after
+    && input.categoryId
+    && input.categoryId !== before.categoryId
+    && after.categoryId
+  ) {
+    queueMerchantLearningFeedback({
+      amountMinor: after.amountMinor,
+      correctionType: "corrected",
+      direction: after.direction,
+      entityId: id,
+      entityType: "transaction",
+      finalCategoryId: after.categoryId,
+      finalCategoryLabel: after.categoryLabel,
+      merchantName: after.merchant,
+      oldCategoryId: before.categoryId,
+      oldCategoryLabel: before.categoryLabel,
+    });
+  }
 }
 
 export function deleteTransactionUseCase(id: string) {
@@ -211,29 +294,78 @@ export function acceptSmsCandidateReviewUseCase(id: string) {
   }
 
   if (
-    feedbackContext?.classificationSource === "ai" &&
+    feedbackContext?.suggestedCategoryLabel &&
     feedbackContext.categoryId &&
-    feedbackContext.suggestedCategoryLabel
+    feedbackContext.categoryLabel
   ) {
-    createAiJob({
-      itemIds: [id],
-      itemType: "sms_candidate",
-      jobType: "submit_feedback",
-      payload: {
-        aiSuggestedCategory: feedbackContext.suggestedCategoryLabel,
-        finalCategory: feedbackContext.categoryLabel,
-        merchantKey: feedbackContext.merchantKey,
-        merchantName: feedbackContext.merchant,
-        userId: DEFAULT_USER_ID,
-        wasAiCorrect:
-          feedbackContext.categoryLabel.toLowerCase() ===
-          feedbackContext.suggestedCategoryLabel.toLowerCase(),
-      },
-      scope: "sms_single",
+    const wasAiCorrect =
+      feedbackContext.categoryLabel.toLowerCase() ===
+      feedbackContext.suggestedCategoryLabel.toLowerCase();
+
+    createAiFeedbackEvent({
+      aiConfidence: feedbackContext.classificationConfidence,
+      aiSuggestedCategoryLabel: feedbackContext.suggestedCategoryLabel,
+      amountMinor: feedbackContext.amountMinor,
+      classificationSource: feedbackContext.suggestedCategoryLabel
+        ? "ai"
+        : feedbackContext.classificationSource,
+      correctionType: wasAiCorrect ? "confirmed" : "corrected",
+      direction: feedbackContext.direction,
+      entityId: id,
+      entityType: "sms_candidate",
+      finalCategoryId: feedbackContext.categoryId,
+      finalCategoryLabel: feedbackContext.categoryLabel,
+      merchantKey: feedbackContext.merchantKey,
+      merchantName: feedbackContext.merchant,
     });
   }
 
   return transactionId;
+}
+
+function queueMerchantLearningFeedback(input: {
+  amountMinor: number;
+  correctionType: "confirmed" | "corrected" | "manual_teach" | "dismissed";
+  direction: "expense" | "income";
+  entityId: string;
+  entityType: "sms_candidate" | "transaction" | "bill_payment";
+  finalCategoryId: string;
+  finalCategoryLabel: string;
+  merchantName: string;
+  oldCategoryId?: string | null;
+  oldCategoryLabel?: string | null;
+}) {
+  const merchantKey = normalizeMerchantKey(input.merchantName);
+  if (!merchantKey) {
+    return;
+  }
+
+  const finalCategory = getCategoryLearningContext(input.finalCategoryId);
+  if (!finalCategory) {
+    return;
+  }
+
+  upsertMerchantMemory({
+    categoryId: finalCategory.id,
+    confidence: input.correctionType === "manual_teach" ? 92 : 100,
+    merchantKey,
+    merchantName: input.merchantName,
+    source: "user",
+  });
+
+  createAiFeedbackEvent({
+    amountMinor: input.amountMinor,
+    correctionType: input.correctionType,
+    direction: input.direction,
+    entityId: input.entityId,
+    entityType: input.entityType,
+    finalCategoryId: finalCategory.id,
+    finalCategoryLabel: finalCategory.label,
+    merchantKey,
+    merchantName: input.merchantName,
+    oldCategoryId: input.oldCategoryId ?? null,
+    oldCategoryLabel: input.oldCategoryLabel ?? null,
+  });
 }
 
 export function dismissSmsCandidateReviewUseCase(id: string) {
