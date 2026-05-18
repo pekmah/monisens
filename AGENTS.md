@@ -2,6 +2,13 @@
 
 This Expo app uses a feature-based architecture modeled after `reemio-app`.
 
+## Related AI Guides
+
+- Use `PLANS.md` for significant execution plans and keep plans in `docs/ai/plans/`.
+- Use `docs/expo-app-architecture.md` for Expo, React Native, routing, performance, and folder ownership rules.
+- Use `docs/app-coding-guidelines.md` for screen completeness, list refresh, mutation, form, and resource workflow expectations.
+- Use `docs/frontend-architecture.md` for this app's route, feature, UI, data-layer, and performance map.
+
 ## Source Layout
 
 - Keep Expo Router route files in `src/app`.
