@@ -1,15 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import {
-  BottomSheetBackdrop,
-  BottomSheetFlatList,
-  BottomSheetModal,
-} from "@gorhom/bottom-sheet";
+import { BottomSheetFlatList, BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Stack } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import {
   AppButton,
+  AppBottomSheetModal,
   AppFlashList,
   AppPressable,
   AppText,
@@ -53,23 +50,6 @@ export default function SettingsCategoriesScreen() {
   const activeColorValue = colorPickerTarget === "edit" ? editingColor : draftColor;
   const activeColorTitle =
     colorPickerTarget === "edit" ? "Update category color" : "Choose category color";
-
-  const renderColorPickerBackdrop = useCallback(
-    (
-      props: Parameters<
-        NonNullable<React.ComponentProps<typeof BottomSheetModal>["backdropComponent"]>
-      >[0],
-    ) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.42}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
 
   const closeColorPicker = useCallback(() => {
     colorPickerModalRef.current?.dismiss();
@@ -338,35 +318,19 @@ export default function SettingsCategoriesScreen() {
         visible={Boolean(pendingDelete)}
       />
 
-      <BottomSheetModal
+      <AppBottomSheetModal
         ref={colorPickerModalRef}
-        backdropComponent={renderColorPickerBackdrop}
-        backgroundStyle={{ backgroundColor: theme.colors.surfaceContainerLowest }}
         enableDynamicSizing={false}
-        enableDismissOnClose
-        handleIndicatorStyle={{ backgroundColor: theme.colors.outline }}
         onDismiss={() => setColorPickerTarget(null)}
+        onClosePress={closeColorPicker}
         snapPoints={["82%"]}
+        subtitle="Choose a color accent from the full palette."
+        title={activeColorTitle}
       >
         <BottomSheetFlatList
           contentContainerStyle={styles.pickerListContent}
           data={colorOptions}
           keyExtractor={(item) => item.value}
-          ListHeaderComponent={
-            <View style={styles.sheetHeader}>
-              <View style={styles.sheetCopy}>
-                <AppText style={styles.sheetTitle} variant="titleMd">
-                  {activeColorTitle}
-                </AppText>
-                <AppText color="mutedText" style={styles.sheetSubtitle} variant="bodyMd">
-                  Choose a color accent from the full palette.
-                </AppText>
-              </View>
-              <AppPressable onPress={closeColorPicker} style={styles.closeButton}>
-                <Feather color={theme.colors.mutedText} name="x" size={18} />
-              </AppPressable>
-            </View>
-          }
           ListFooterComponent={
             <View style={styles.footer}>
               <AppButton onPress={closeColorPicker} title="Close" variant="secondary" />
@@ -408,7 +372,7 @@ export default function SettingsCategoriesScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.pickerList}
         />
-      </BottomSheetModal>
+      </AppBottomSheetModal>
     </>
   );
 }
@@ -502,9 +466,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.sm,
   },
-  closeButton: {
-    padding: Spacing.sm,
-  },
   section: {
     gap: Spacing.md,
   },
@@ -574,7 +535,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pickerListContent: {
-    paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xl,
     paddingTop: Sizes.xs,
   },
@@ -583,23 +543,5 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: Spacing.md,
-  },
-  sheetCopy: {
-    flex: 1,
-    gap: Sizes.xs,
-  },
-  sheetHeader: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: Spacing.md,
-    justifyContent: "space-between",
-    paddingBottom: Spacing.lg,
-  },
-  sheetSubtitle: {
-    fontSize: FontSizes.md,
-    lineHeight: LineHeights.md,
-  },
-  sheetTitle: {
-    fontFamily: font.headerSemiBold,
   },
 });

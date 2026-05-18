@@ -6,11 +6,11 @@ import {
   AppButton,
   AppFlashList,
   AppPressable,
+  CategorySelectField,
   NestedScreenHeader,
   AppText,
   AppTextInput,
   KeyboardScreen,
-  OptionSelectField,
 } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
@@ -197,24 +197,11 @@ export default function TransactionEntryScreen() {
             { backgroundColor: theme.colors.surfaceContainerLowest },
           ]}
         >
-          {snapshot?.categories.length ? (
-            <OptionSelectField
-              label="Category"
-              onSelect={setCategoryId}
-              options={snapshot.categories.map((category) => ({
-                accentColor: category.color,
-                label: category.label,
-                value: category.id,
-              }))}
-              placeholder="Choose a category"
-              selectedValue={categoryId}
-              title="Select category"
-            />
-          ) : (
-            <AppText color="mutedText" variant="bodyMd">
-              No categories are stored in the database yet.
-            </AppText>
-          )}
+          <CategorySelectField
+            onSelect={(value) => setCategoryId(value)}
+            selectedValue={categoryId}
+            title="Select category"
+          />
         </View>
 
         <View

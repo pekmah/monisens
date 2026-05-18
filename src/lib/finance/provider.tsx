@@ -12,6 +12,7 @@ import {
 import { AppState } from "react-native";
 
 import { subscribeToAiQueueUpdates } from "@/lib/ai/events";
+import { financeQueryKeys } from "@/lib/finance/queries";
 import type {
   BillRecord,
   BillTransactionMatchRecord,
@@ -73,6 +74,7 @@ import {
   updateSmsCandidateCategoryUseCase,
   updateTransactionUseCase,
 } from "@/lib/finance/use-cases";
+import { appQueryClient } from "@/lib/query-client";
 import { stopSmsListening, subscribeToSmsEvents } from "@/lib/sms-native";
 
 const FinanceContext = createContext<{
@@ -298,6 +300,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const createLocalCategory = useCallback(
     async (input: { color: string; label: string }) => {
       const id = createCategoryUseCase(input);
+      await appQueryClient.invalidateQueries({ queryKey: financeQueryKeys.categories() });
       await refresh();
       return id;
     },
@@ -348,6 +351,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const updateLocalCategory = useCallback(
     async (input: { color: string; id: string; label: string }) => {
       updateCategoryUseCase(input);
+      await appQueryClient.invalidateQueries({ queryKey: financeQueryKeys.categories() });
       await refresh();
     },
     [refresh],
@@ -356,6 +360,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const deleteLocalCategory = useCallback(
     async (id: string) => {
       deleteCategoryUseCase(id);
+      await appQueryClient.invalidateQueries({ queryKey: financeQueryKeys.categories() });
       await refresh();
     },
     [refresh],
@@ -524,6 +529,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const approveCategoryProposal = useCallback(
     async (id: string) => {
       approveCategoryProposalUseCase(id);
+      await appQueryClient.invalidateQueries({ queryKey: financeQueryKeys.categories() });
       await refresh();
     },
     [refresh],

@@ -19,8 +19,17 @@ export type { DividerProps } from './divider';
 export { ConfirmationDialog } from './confirmation-dialog';
 export type { ConfirmationDialogProps } from './confirmation-dialog';
 
+export { AppBottomSheetModal } from './app-bottom-sheet-modal';
+export type { AppBottomSheetModalProps } from './app-bottom-sheet-modal';
+
 export { OptionSelectField } from './option-select-field';
 export type { OptionSelectFieldProps, OptionSelectItem } from './option-select-field';
+
+export { CategorySelectField } from './category-select-field';
+export type { CategorySelectFieldProps } from './category-select-field';
+
+export { CategorySelectList } from './category-select-list';
+export type { CategorySelectListProps } from './category-select-list';
 
 export { EmptyState } from './empty-state';
 export type { EmptyStateProps } from './empty-state';

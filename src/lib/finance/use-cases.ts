@@ -37,6 +37,7 @@ import {
   getFinanceSnapshot,
   getBillById,
   getCategoryLearningContext,
+  listCategories,
   listBillTransactionMatches,
   getSmsSyncState,
   getSmsSourceProfileGroups,
@@ -165,6 +166,10 @@ export function updateCategoryUseCase(input: {
 
 export function deleteCategoryUseCase(id: string) {
   deleteCategory(id);
+}
+
+export function loadCategoriesUseCase() {
+  return listCategories();
 }
 
 export function createTransactionUseCase(input: CreateTransactionInput) {

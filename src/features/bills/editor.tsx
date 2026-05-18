@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 
 import {
   AppButton,
+  CategorySelectField,
   AppText,
   AppTextInput,
   KeyboardScreen,
@@ -209,20 +210,11 @@ export default function BillEditorScreen() {
             placeholder="2500"
             value={amount}
           />
-          {snapshot?.categories.length ? (
-            <OptionSelectField
-              label="Category"
-              onSelect={setCategoryId}
-              options={snapshot.categories.map((category) => ({
-                accentColor: category.color,
-                label: category.label,
-                value: category.id,
-              }))}
-              placeholder="Choose a category"
-              selectedValue={categoryId}
-              title="Choose bill category"
-            />
-          ) : null}
+          <CategorySelectField
+            onSelect={(value) => setCategoryId(value)}
+            selectedValue={categoryId}
+            title="Choose bill category"
+          />
           <AppTextInput
             label="Account label"
             onChangeText={setAccountLabel}

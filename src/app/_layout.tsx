@@ -15,6 +15,7 @@ import {
 } from "@expo-google-fonts/manrope";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider } from "@react-navigation/native";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -29,6 +30,7 @@ import { font } from "@/constants/fonts";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { FinanceProvider } from "@/lib/finance";
 import { OtaUpdateController, withHotUpdater } from "@/lib/ota-updates";
+import { appQueryClient } from "@/lib/query-client";
 import { getThemes } from "@/lib/theme";
 import { ThemeControllerProvider } from "@/lib/theme-controller";
 
@@ -63,9 +65,11 @@ function RootLayout() {
 
   return (
     <ThemeControllerProvider>
-      <FinanceProvider>
-        <RootNavigator />
-      </FinanceProvider>
+      <QueryClientProvider client={appQueryClient}>
+        <FinanceProvider>
+          <RootNavigator />
+        </FinanceProvider>
+      </QueryClientProvider>
     </ThemeControllerProvider>
   );
 }

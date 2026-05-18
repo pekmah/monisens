@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 
-import { AppPressable, AppText, OptionSelectField } from "@/components/base";
+import { AppPressable, AppText, CategorySelectField } from "@/components/base";
 import { font } from "@/constants/fonts";
 import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
@@ -43,15 +43,8 @@ export function CategoryCard({
       </View>
       {categories.length ? (
         editing ? (
-          <OptionSelectField
-            label="Category"
-            onSelect={onSelectCategory}
-            options={categories.map((category) => ({
-              accentColor: category.color,
-              label: category.label,
-              value: category.id,
-            }))}
-            placeholder="Choose a category"
+          <CategorySelectField
+            onSelect={(value) => onSelectCategory(value)}
             selectedValue={activeCategoryId}
             title="Update category"
           />

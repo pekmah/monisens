@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
-import { AppButton, AppText, AppTextInput, OptionSelectField } from "@/components/base";
+import { AppButton, AppText, AppTextInput, CategorySelectField } from "@/components/base";
 import { Radii, Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
@@ -71,35 +71,22 @@ export default function BudgetingScreen() {
               placeholder="Dining and groceries"
               value={notes}
             />
-            {snapshot?.categories.length ? (
-              <OptionSelectField
-                label="Category"
-                onSelect={setCategoryId}
-                options={snapshot.categories.map((category) => ({
-                  accentColor: category.color,
-                  label: category.label,
-                  value: category.id,
-                }))}
-                placeholder="Choose a category"
-                selectedValue={categoryId}
-                title="Choose budget category"
-              />
-            ) : (
-              <AppText color="mutedText" variant="bodyMd">
-                No categories are stored in the database yet.
-              </AppText>
-            )}
+            <CategorySelectField
+              onSelect={(value) => setCategoryId(value)}
+              selectedValue={categoryId}
+              title="Choose budget category"
+            />
             <View style={styles.actions}>
               <AppButton onPress={() => setCreating(false)} title="Cancel" variant="secondary" />
               <AppButton
-                disabled={!snapshot?.categories.length}
+                disabled={!categoryId}
                 onPress={() => void handleCreateBudget()}
                 title="Save budget"
               />
             </View>
-            {!snapshot?.categories.length ? (
+            {!categoryId ? (
               <AppText color="mutedText" variant="bodyMd">
-                Add categories to the database before creating budgets.
+                Choose a category before creating budgets.
               </AppText>
             ) : null}
           </View>

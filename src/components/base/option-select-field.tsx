@@ -1,13 +1,24 @@
 import { Feather } from "@expo/vector-icons";
+import { BottomSheetFlatList, BottomSheetModal } from "@gorhom/bottom-sheet";
 import {
-  BottomSheetBackdrop,
-  BottomSheetFlatList,
-  BottomSheetModal,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ComponentProps,
+  type MutableRefObject,
+  type Ref,
+} from "react";
+import {
+  StyleSheet,
+  type StyleProp,
+  type TextStyle,
+  View,
+  type ViewStyle,
+} from "react-native";
 
+import { AppBottomSheetModal } from "@/components/base/app-bottom-sheet-modal";
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { AppButton } from "@/components/base/button";
@@ -23,132 +34,157 @@ export type OptionSelectItem = {
 };
 
 export type OptionSelectFieldProps = {
+  closeLabel?: string;
+  disabled?: boolean;
   emptyText?: string;
+  fieldStyle?: StyleProp<ViewStyle>;
   helperText?: string;
+  helperTextStyle?: StyleProp<TextStyle>;
   label: string;
+  labelStyle?: StyleProp<TextStyle>;
+  modalRef?: Ref<BottomSheetModal>;
   onSelect: (value: string) => void;
   options: OptionSelectItem[];
   placeholder?: string;
   selectedValue: string | null;
+  sheetSubtitle?: string;
+  snapPoints?: ComponentProps<typeof BottomSheetModal>["snapPoints"];
   title?: string;
+  valueStyle?: StyleProp<TextStyle>;
+  wrapperStyle?: StyleProp<ViewStyle>;
 };
 
-export function OptionSelectField({
-  emptyText = "No options are available yet.",
-  helperText,
-  label,
-  onSelect,
-  options,
-  placeholder = "Choose an option",
-  selectedValue,
-  title,
-}: OptionSelectFieldProps) {
-  const theme = useAppTheme();
-  const modalRef = useRef<BottomSheetModal>(null);
-  const suppressOpenUntilRef = useRef(0);
+function assignModalRef(ref: Ref<BottomSheetModal> | undefined, value: BottomSheetModal | null) {
+  if (!ref) {
+    return;
+  }
 
-  const selectedOption = useMemo(
-    () => options.find((option) => option.value === selectedValue) ?? null,
-    [options, selectedValue],
-  );
-  const snapPoints = useMemo(
-    () => (options.length > 6 ? ["78%"] : options.length > 3 ? ["64%"] : ["48%"]),
-    [options.length],
-  );
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
 
-  useEffect(() => {
-    return () => {
+  (ref as MutableRefObject<BottomSheetModal | null>).current = value;
+}
+
+export const OptionSelectField = forwardRef<BottomSheetModal, OptionSelectFieldProps>(
+  function OptionSelectField(
+    {
+      closeLabel = "Close",
+      disabled = false,
+      emptyText = "No options are available yet.",
+      fieldStyle,
+      helperText,
+      helperTextStyle,
+      label,
+      labelStyle,
+      modalRef: modalRefProp,
+      onSelect,
+      options,
+      placeholder = "Choose an option",
+      selectedValue,
+      sheetSubtitle = "Select one option.",
+      snapPoints: snapPointsProp,
+      title,
+      valueStyle,
+      wrapperStyle,
+    },
+    forwardedRef,
+  ) {
+    const theme = useAppTheme();
+    const modalRef = useRef<BottomSheetModal>(null);
+    const suppressOpenUntilRef = useRef(0);
+
+    const selectedOption = useMemo(
+      () => options.find((option) => option.value === selectedValue) ?? null,
+      [options, selectedValue],
+    );
+    const defaultSnapPoints = useMemo(
+      () => (options.length > 6 ? ["78%"] : options.length > 3 ? ["64%"] : ["48%"]),
+      [options.length],
+    );
+    const snapPoints = snapPointsProp ?? defaultSnapPoints;
+
+    const setModalRef = useCallback(
+      (value: BottomSheetModal | null) => {
+        modalRef.current = value;
+        assignModalRef(modalRefProp, value);
+        assignModalRef(forwardedRef, value);
+      },
+      [forwardedRef, modalRefProp],
+    );
+
+    useEffect(() => {
+      return () => {
+        modalRef.current?.dismiss();
+      };
+    }, []);
+
+    const handleOpen = useCallback(() => {
+      if (disabled || Date.now() < suppressOpenUntilRef.current) {
+        return;
+      }
+
+      modalRef.current?.present();
+    }, [disabled]);
+
+    const handleClose = useCallback(() => {
       modalRef.current?.dismiss();
-    };
-  }, []);
+    }, []);
 
-  const handleOpen = useCallback(() => {
-    if (Date.now() < suppressOpenUntilRef.current) {
-      return;
-    }
-
-    modalRef.current?.present();
-  }, []);
-
-  const handleClose = useCallback(() => {
-    modalRef.current?.dismiss();
-  }, []);
-
-  const renderBackdrop = useCallback(
-    (props: Parameters<NonNullable<React.ComponentProps<typeof BottomSheetModal>["backdropComponent"]>>[0]) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.42}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
-
-  return (
-    <>
-      <View style={styles.fieldWrap}>
-        <AppText style={styles.fieldLabel} variant="labelMd">
-          {label}
-        </AppText>
-        <AppPressable
-          onPress={handleOpen}
-          style={[
-            styles.field,
-            {
-              backgroundColor: theme.colors.surfaceContainerLow,
-              borderColor: theme.colors.outlineVariant,
-            },
-          ]}
-        >
-          <View style={styles.fieldValueRow}>
-            {selectedOption?.accentColor ? (
-              <View style={[styles.dot, { backgroundColor: selectedOption.accentColor }]} />
-            ) : null}
-            <View style={styles.fieldCopy}>
-              <AppText
-                color={selectedOption ? "text" : "mutedText"}
-                style={styles.fieldValue}
-                variant="bodyMd"
-              >
-                {selectedOption?.label ?? placeholder}
-              </AppText>
-              {helperText ? (
-                <AppText color="mutedText" style={styles.helperText} variant="bodyMd">
-                  {helperText}
-                </AppText>
+    return (
+      <>
+        <View style={[styles.fieldWrap, wrapperStyle]}>
+          <AppText style={[styles.fieldLabel, labelStyle]} variant="labelMd">
+            {label}
+          </AppText>
+          <AppPressable
+            disabled={disabled}
+            onPress={handleOpen}
+            style={[
+              styles.field,
+              {
+                backgroundColor: theme.colors.surfaceContainerLow,
+                borderColor: theme.colors.outlineVariant,
+                opacity: disabled ? 0.58 : 1,
+              },
+              fieldStyle,
+            ]}
+          >
+            <View style={styles.fieldValueRow}>
+              {selectedOption?.accentColor ? (
+                <View style={[styles.dot, { backgroundColor: selectedOption.accentColor }]} />
               ) : null}
+              <View style={styles.fieldCopy}>
+                <AppText
+                  color={selectedOption ? "text" : "mutedText"}
+                  style={[styles.fieldValue, valueStyle]}
+                  variant="bodyMd"
+                >
+                  {selectedOption?.label ?? placeholder}
+                </AppText>
+                {helperText ? (
+                  <AppText
+                    color="mutedText"
+                    style={[styles.helperText, helperTextStyle]}
+                    variant="bodyMd"
+                  >
+                    {helperText}
+                  </AppText>
+                ) : null}
+              </View>
             </View>
-          </View>
-          <Feather color={theme.colors.mutedText} name="chevron-down" size={18} />
-        </AppPressable>
-      </View>
+            <Feather color={theme.colors.mutedText} name="chevron-down" size={18} />
+          </AppPressable>
+        </View>
 
-      <BottomSheetModal
-        ref={modalRef}
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: theme.colors.surfaceContainerLowest }}
-        enableDismissOnClose
-        handleIndicatorStyle={{ backgroundColor: theme.colors.outline }}
-        snapPoints={snapPoints}
-      >
-        <BottomSheetView style={styles.sheetContent}>
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetCopy}>
-              <AppText style={styles.sheetTitle} variant="titleMd">
-                {title ?? label}
-              </AppText>
-              <AppText color="mutedText" style={styles.sheetSubtitle} variant="bodyMd">
-                Select one option.
-              </AppText>
-            </View>
-            <AppPressable onPress={handleClose} style={styles.closeButton}>
-              <Feather color={theme.colors.mutedText} name="x" size={18} />
-            </AppPressable>
-          </View>
-
+        <AppBottomSheetModal
+          ref={setModalRef}
+          onClosePress={handleClose}
+          snapPoints={snapPoints}
+          subtitle={sheetSubtitle}
+          title={title ?? label}
+        >
           {options.length ? (
             <BottomSheetFlatList
               contentContainerStyle={styles.listContent}
@@ -156,7 +192,7 @@ export function OptionSelectField({
               keyExtractor={(item) => item.value}
               ListFooterComponent={
                 <View style={styles.footer}>
-                  <AppButton onPress={handleClose} title="Close" variant="secondary" />
+                  <AppButton onPress={handleClose} title={closeLabel} variant="secondary" />
                 </View>
               }
               renderItem={({ item }) => {
@@ -193,7 +229,11 @@ export function OptionSelectField({
                         </AppText>
                       </View>
                       {item.description ? (
-                        <AppText color="mutedText" style={styles.optionDescription} variant="bodyMd">
+                        <AppText
+                          color="mutedText"
+                          style={styles.optionDescription}
+                          variant="bodyMd"
+                        >
                           {item.description}
                         </AppText>
                       ) : null}
@@ -218,19 +258,16 @@ export function OptionSelectField({
               <AppText color="mutedText" variant="bodyMd">
                 {emptyText}
               </AppText>
-              <AppButton onPress={handleClose} title="Close" variant="secondary" />
+              <AppButton onPress={handleClose} title={closeLabel} variant="secondary" />
             </View>
           )}
-        </BottomSheetView>
-      </BottomSheetModal>
-    </>
-  );
-}
+        </AppBottomSheetModal>
+      </>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
-  closeButton: {
-    padding: Spacing.sm,
-  },
   dot: {
     borderRadius: Radii.full,
     height: Sizes.sm,
@@ -312,30 +349,6 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: Spacing.xs + Sizes.xs / 2,
-  },
-  sheetContent: {
-    flex: 1,
-    gap: Spacing.lg,
-    paddingBottom: Sizes["4xl"],
-    paddingHorizontal: Spacing.xl,
-    minHeight: 0,
-  },
-  sheetCopy: {
-    flex: 1,
-    gap: Sizes.xs,
-  },
-  sheetHeader: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: Spacing.md,
-    justifyContent: "space-between",
-  },
-  sheetSubtitle: {
-    fontSize: FontSizes.md,
-    lineHeight: LineHeights.md,
-  },
-  sheetTitle: {
-    fontFamily: font.headerSemiBold,
   },
 });
 

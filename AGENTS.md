@@ -41,6 +41,15 @@ This Expo app uses a feature-based architecture modeled after `reemio-app`.
 - Avoid 1px divider-first layouts. Follow the Stitch design direction by separating surfaces through tonal background changes, spacing, and subtle outline variants only when accessibility requires it.
 - Keep Inter as the app default even when Stitch reference screens use display-oriented headline fonts.
 
+## Component Structure
+
+- Do not declare a React component inside the body of another component. Define child components at module scope or move them into a separate file. Nested component declarations are recreated on every parent render, which can cause unnecessary work and UI state loss.
+- Feature-specific components must live in that feature's `src/features/<feature-name>/components` folder. Keep `src/features/<feature-name>/index.tsx` focused on screen orchestration and move screen sections, list rows, empty/loading states, and other JSX-heavy pieces into feature-local component files.
+
+## Comments
+
+- Add comments while coding to explain what is happening in the codebase, especially around state transitions, data loading, optimistic updates, derived values, and non-obvious UI behavior. Keep comments useful and concise: explain intent and context, not what an obvious line of code already says.
+
 ## Feature Boundaries
 
 - New user-facing workflows should start as a feature under `src/features`.
