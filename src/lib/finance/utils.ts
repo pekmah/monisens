@@ -59,12 +59,15 @@ export function buildTransactionSections(
 
     items.push({
       accent: transaction.categoryColor,
+      amountMinor: transaction.amountMinor,
       amountLabel: formatSignedMoney(
         transaction.amountMinor,
         transaction.currency,
         transaction.direction,
       ),
       category: transaction.categoryLabel,
+      currency: transaction.currency,
+      direction: transaction.direction,
       hint: undefined,
       id: transaction.id,
       time: formatTransactionTime(transaction.transactionAt),

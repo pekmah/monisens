@@ -467,8 +467,11 @@ export type CategorySummaryRecord = {
 
 export type TransactionSectionItem = {
   accent: string;
+  amountMinor: number;
   amountLabel: string;
   category: string;
+  currency: string;
+  direction: "expense" | "income";
   id: string;
   hint?: string;
   time: string;

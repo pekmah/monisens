@@ -3,7 +3,10 @@ import { StyleSheet, View } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { Sizes, Spacing } from "@/constants/theme";
-import type { TransactionSectionRecord } from "@/lib/finance/types";
+import type {
+  TransactionSectionItem,
+  TransactionSectionRecord,
+} from "@/lib/finance/types";
 
 import {
   TransactionListItem,
@@ -17,6 +20,7 @@ type TransactionListRow =
   | {
       id: string;
       title: string;
+      transactions: TransactionSectionItem[];
       type: "section";
     }
   | {
@@ -42,7 +46,12 @@ export function TransactionList({
 
   const renderItem = useCallback(({ item }: { item: TransactionListRow }) => {
     if (item.type === "section") {
-      return <TransactionSectionHeader title={item.title} />;
+      return (
+        <TransactionSectionHeader
+          title={item.title}
+          transactions={item.transactions}
+        />
+      );
     }
 
     return <TransactionListItem transaction={item.transaction} />;
@@ -81,6 +90,7 @@ function flattenTransactionSections(sections: TransactionSectionRecord[]) {
     rows.push({
       id: `section:${section.title}`,
       title: section.title,
+      transactions: section.data,
       type: "section",
     });
 
