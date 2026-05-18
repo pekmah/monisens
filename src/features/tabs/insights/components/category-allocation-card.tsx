@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { AppText } from "@/components/base/app-text";
@@ -28,7 +28,7 @@ export function CategoryAllocationCard({
             <View style={styles.allocation}>
               <View style={styles.allocationHeader}>
                 <View style={styles.labelRow}>
-                  <View style={[styles.dot, { backgroundColor: item.color }]} />
+                  <View style={[styles.dot, getDotThemeStyle(item.color)]} />
                   <AppText style={styles.label} variant="bodyMd">
                     {item.label}
                   </AppText>
@@ -53,6 +53,12 @@ export function CategoryAllocationCard({
       )}
     </SurfaceCard>
   );
+}
+
+function getDotThemeStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
 }
 
 const styles = StyleSheet.create({

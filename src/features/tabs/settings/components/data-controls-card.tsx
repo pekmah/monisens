@@ -1,9 +1,16 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFinance } from "@/lib/finance";
@@ -31,17 +38,16 @@ export function DataControlsCard() {
     + attachmentCount
     + feedbackEventCount
     + merchantMemoryCount;
+  const iconTileThemeStyle = getIconTileThemeStyle(theme);
+  const controlThemeStyle = getControlThemeStyle(theme);
+  const localControlIconThemeStyle = getLocalControlIconThemeStyle(theme);
+  const backupControlIconThemeStyle = getBackupControlIconThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.header}>
-        <View
-          style={[
-            styles.iconTile,
-            { backgroundColor: `${theme.colors.secondary}14` },
-          ]}
-        >
-          <Feather color={theme.colors.secondary} name="database" size={18} />
+        <View style={[styles.iconTile, iconTileThemeStyle]}>
+          <Feather color={theme.colors.secondary} name="database" size={Sizes.xl} />
         </View>
         <View style={styles.headerCopy}>
           <AppText style={styles.title} variant="titleMd">
@@ -61,22 +67,11 @@ export function DataControlsCard() {
       </View>
 
       <View
-        style={[
-          styles.control,
-          {
-            backgroundColor: theme.colors.surfaceContainerLow,
-            borderColor: theme.colors.outlineVariant,
-          },
-        ]}
+        style={[styles.control, controlThemeStyle]}
       >
         <View style={styles.controlHeader}>
-          <View
-            style={[
-              styles.controlIcon,
-              { backgroundColor: `${theme.colors.primary}12` },
-            ]}
-          >
-            <Feather color={theme.colors.primary} name="hard-drive" size={18} />
+          <View style={[styles.controlIcon, localControlIconThemeStyle]}>
+            <Feather color={theme.colors.primary} name="hard-drive" size={Sizes.xl} />
           </View>
           <View style={styles.controlCopy}>
             <AppText style={styles.controlTitle} variant="labelMd">
@@ -94,22 +89,11 @@ export function DataControlsCard() {
       </View>
 
       <View
-        style={[
-          styles.control,
-          {
-            backgroundColor: theme.colors.surfaceContainerLow,
-            borderColor: theme.colors.outlineVariant,
-          },
-        ]}
+        style={[styles.control, controlThemeStyle]}
       >
         <View style={styles.controlHeader}>
-          <View
-            style={[
-              styles.controlIcon,
-              { backgroundColor: `${theme.colors.tertiary}12` },
-            ]}
-          >
-            <Feather color={theme.colors.tertiary} name="archive" size={18} />
+          <View style={[styles.controlIcon, backupControlIconThemeStyle]}>
+            <Feather color={theme.colors.tertiary} name="archive" size={Sizes.xl} />
           </View>
           <View style={styles.controlCopy}>
             <AppText style={styles.controlTitle} variant="labelMd">
@@ -127,17 +111,10 @@ export function DataControlsCard() {
 
 function MetricTile({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme();
+  const metricTileThemeStyle = getMetricTileThemeStyle(theme);
 
   return (
-    <View
-      style={[
-        styles.metricTile,
-        {
-          backgroundColor: theme.colors.surfaceContainer,
-          borderColor: theme.colors.outlineVariant,
-        },
-      ]}
-    >
+    <View style={[styles.metricTile, metricTileThemeStyle]}>
       <AppText color="mutedText" style={styles.metricLabel} variant="labelMd">
         {label}
       </AppText>
@@ -146,6 +123,38 @@ function MetricTile({ label, value }: { label: string; value: string }) {
       </AppText>
     </View>
   );
+}
+
+function getIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.secondary}14`,
+  };
+}
+
+function getControlThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getLocalControlIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.primary}12`,
+  };
+}
+
+function getBackupControlIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.tertiary}12`,
+  };
+}
+
+function getMetricTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainer,
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 function formatCount(value: number) {

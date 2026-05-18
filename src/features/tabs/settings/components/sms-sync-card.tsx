@@ -1,12 +1,26 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Platform, StyleSheet, Switch, View } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  Switch,
+  View,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { AppButton } from "@/components/base/button";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { ProgressBar, SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFinance } from "@/lib/finance";
@@ -76,6 +90,12 @@ export function SmsSyncCard() {
       : permissionGranted
         ? "New SMS will land locally and move through AI only when needed"
         : "Grant access before the app can import or watch finance SMS";
+  const iconTileThemeStyle = getIconTileThemeStyle(theme);
+  const statusCardThemeStyle = getStatusCardThemeStyle(theme);
+  const statusTextThemeStyle = getTextColorThemeStyle(statusTone);
+  const statusPillThemeStyle = getStatusPillThemeStyle(statusTone);
+  const listenerRowThemeStyle = getInsetCardThemeStyle(theme);
+  const batchCardThemeStyle = getInsetCardThemeStyle(theme);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,13 +127,8 @@ export function SmsSyncCard() {
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.header}>
-        <View
-          style={[
-            styles.iconTile,
-            { backgroundColor: `${theme.colors.primary}14` },
-          ]}
-        >
-          <Feather color={theme.colors.primary} name="message-circle" size={18} />
+        <View style={[styles.iconTile, iconTileThemeStyle]}>
+          <Feather color={theme.colors.primary} name="message-circle" size={Sizes.xl} />
         </View>
         <View style={styles.headerCopy}>
           <AppText style={styles.title} variant="titleMd">
@@ -136,15 +151,12 @@ export function SmsSyncCard() {
           <View
             style={[
               styles.statusCard,
-              {
-                backgroundColor: theme.colors.surfaceContainerLow,
-                borderColor: theme.colors.outlineVariant,
-              },
+              statusCardThemeStyle,
             ]}
           >
             <View style={styles.statusHeader}>
               <View style={styles.statusCopy}>
-                <AppText style={[styles.statusTitle, { color: statusTone }]} variant="labelMd">
+                <AppText style={[styles.statusTitle, statusTextThemeStyle]} variant="labelMd">
                   SMS activity
                 </AppText>
                 <AppText style={styles.statusHeadline} variant="titleMd">
@@ -157,13 +169,10 @@ export function SmsSyncCard() {
               <View
                 style={[
                   styles.statusPill,
-                  {
-                    backgroundColor: `${statusTone}14`,
-                    borderColor: `${statusTone}2e`,
-                  },
+                  statusPillThemeStyle,
                 ]}
               >
-                <AppText style={[styles.statusPillText, { color: statusTone }]} variant="labelMd">
+                <AppText style={[styles.statusPillText, statusTextThemeStyle]} variant="labelMd">
                   {progressValue}%
                 </AppText>
               </View>
@@ -181,10 +190,7 @@ export function SmsSyncCard() {
             <View
               style={[
                 styles.listenerRow,
-                {
-                  backgroundColor: theme.colors.surfaceContainerLowest,
-                  borderColor: theme.colors.outlineVariant,
-                },
+                listenerRowThemeStyle,
               ]}
             >
               <View style={styles.listenerCopy}>
@@ -241,10 +247,7 @@ export function SmsSyncCard() {
               <View
                 style={[
                   styles.batchCard,
-                  {
-                    backgroundColor: theme.colors.surfaceContainerLowest,
-                    borderColor: theme.colors.outlineVariant,
-                  },
+                  batchCardThemeStyle,
                 ]}
               >
                 <AppText style={styles.listenerTitle} variant="labelMd">
@@ -332,25 +335,64 @@ function Metric({
       : tone === "primary"
         ? theme.colors.primary
         : theme.colors.text;
+  const metricThemeStyle = getMetricThemeStyle(theme);
+  const valueTextThemeStyle = getTextColorThemeStyle(valueColor);
 
   return (
     <View
       style={[
         styles.metric,
-        {
-          backgroundColor: theme.colors.surfaceContainerLowest,
-          borderColor: theme.colors.outlineVariant,
-        },
+        metricThemeStyle,
       ]}
     >
       <AppText color="mutedText" style={styles.metricLabel} variant="labelMd">
         {label}
       </AppText>
-      <AppText style={[styles.metricValue, { color: valueColor }]} variant="titleMd">
+      <AppText style={[styles.metricValue, valueTextThemeStyle]} variant="titleMd">
         {value}
       </AppText>
     </View>
   );
+}
+
+function getIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.primary}14`,
+  };
+}
+
+function getStatusCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getTextColorThemeStyle(color: string): TextStyle {
+  return {
+    color,
+  };
+}
+
+function getStatusPillThemeStyle(statusTone: string): ViewStyle {
+  return {
+    backgroundColor: `${statusTone}14`,
+    borderColor: `${statusTone}2e`,
+  };
+}
+
+function getInsetCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getMetricThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 function getSmsHeadline(input: {

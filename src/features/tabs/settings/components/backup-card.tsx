@@ -1,11 +1,24 @@
 import { Feather } from "@expo/vector-icons";
 import { useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import {
@@ -52,6 +65,7 @@ export function BackupCard() {
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
 
   const isBusy = activeTask !== null;
+  const primaryActionThemeStyle = getPrimaryActionThemeStyle(theme);
 
   async function handleExport() {
     if (isBusy) {
@@ -250,7 +264,7 @@ export function BackupCard() {
               onPress={confirmRestore}
               style={[
                 styles.previewPrimaryAction,
-                { backgroundColor: theme.colors.onPrimary },
+                primaryActionThemeStyle,
               ]}
             >
               <Feather color={theme.colors.primary} name="rotate-ccw" size={17} />
@@ -287,7 +301,7 @@ export function BackupCard() {
           onPress={handleExport}
           style={[
             styles.primaryAction,
-            { backgroundColor: theme.colors.onPrimary },
+            primaryActionThemeStyle,
           ]}
         >
           {activeTask === "export" ? (
@@ -302,6 +316,12 @@ export function BackupCard() {
       </View>
     </SurfaceCard>
   );
+}
+
+function getPrimaryActionThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.onPrimary,
+  };
 }
 
 const styles = StyleSheet.create({

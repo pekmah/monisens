@@ -1,9 +1,16 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
@@ -19,6 +26,8 @@ export type MetaRowsCardProps = {
 
 export function MetaRowsCard({ rows }: MetaRowsCardProps) {
   const theme = useAppTheme();
+  const rowThemeStyle = getRowThemeStyle(theme);
+  const valuePillThemeStyle = getValuePillThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card}>
@@ -32,7 +41,7 @@ export function MetaRowsCard({ rows }: MetaRowsCardProps) {
           <View
             style={[
               styles.row,
-              { borderBottomColor: theme.colors.outlineVariant },
+              rowThemeStyle,
             ]}
           >
             <AppText color="mutedText" style={styles.label} variant="labelMd">
@@ -43,7 +52,7 @@ export function MetaRowsCard({ rows }: MetaRowsCardProps) {
                 row.tone === "success"
                   ? [
                       styles.valuePill,
-                      { backgroundColor: theme.colors.primaryFixed },
+                      valuePillThemeStyle,
                     ]
                   : styles.valueWrap
               }
@@ -61,6 +70,18 @@ export function MetaRowsCard({ rows }: MetaRowsCardProps) {
       />
     </SurfaceCard>
   );
+}
+
+function getRowThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    borderBottomColor: theme.colors.outlineVariant,
+  };
+}
+
+function getValuePillThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primaryFixed,
+  };
 }
 
 const styles = StyleSheet.create({

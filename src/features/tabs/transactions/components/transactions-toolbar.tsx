@@ -1,9 +1,15 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View, type TextStyle, type ViewStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type TransactionsToolbarProps = {
@@ -18,6 +24,8 @@ export function TransactionsToolbar({
   onSearchTextChange,
 }: TransactionsToolbarProps) {
   const theme = useAppTheme();
+  const searchThemeStyle = getSearchThemeStyle(theme);
+  const inputThemeStyle = getInputThemeStyle(theme);
 
   return (
     <View style={styles.container}>
@@ -32,30 +40,32 @@ export function TransactionsToolbar({
         </View>
       </View>
 
-      <View
-        style={[
-          styles.search,
-          { backgroundColor: theme.colors.surfaceContainerLow },
-        ]}
-      >
+      <View style={[styles.search, searchThemeStyle]}>
         <Feather color={theme.colors.outline} name="search" size={Sizes["2xl"]} />
         <TextInput
           onChangeText={onSearchTextChange}
           placeholder="Search merchant or note"
           placeholderTextColor={theme.colors.outline}
           selectionColor={theme.colors.primary}
-          style={[
-            styles.input,
-            {
-              color: theme.colors.text,
-              fontFamily: font.regular,
-            },
-          ]}
+          style={[styles.input, inputThemeStyle]}
           value={searchText}
         />
       </View>
     </View>
   );
+}
+
+function getSearchThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+  };
+}
+
+function getInputThemeStyle(theme: AppTheme): TextStyle {
+  return {
+    color: theme.colors.text,
+    fontFamily: font.regular,
+  };
 }
 
 const styles = StyleSheet.create({

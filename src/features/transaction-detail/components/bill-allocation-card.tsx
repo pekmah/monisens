@@ -1,9 +1,16 @@
 import { router } from "expo-router";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppPressable, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatMoney, type BillAllocationCandidateRecord } from "@/lib/finance";
@@ -94,15 +101,15 @@ function AllocationRow({
   onAction: () => void;
 }) {
   const theme = useAppTheme();
+  const rowThemeStyle = getRowThemeStyle(theme);
+  const dotThemeStyle = getDotThemeStyle(candidate.categoryColor);
+  const actionThemeStyle = getActionThemeStyle(theme, actionTone);
 
   return (
     <View
       style={[
         styles.row,
-        {
-          backgroundColor: theme.colors.surfaceContainerLow,
-          borderColor: theme.colors.outlineVariant,
-        },
+        rowThemeStyle,
       ]}
     >
       <View style={styles.rowHeader}>
@@ -111,7 +118,7 @@ function AllocationRow({
             <View
               style={[
                 styles.dot,
-                { backgroundColor: candidate.categoryColor },
+                dotThemeStyle,
               ]}
             />
             <AppPressable onPress={() => router.push(`/bills/${candidate.billId}`)}>
@@ -136,12 +143,7 @@ function AllocationRow({
         onPress={onAction}
         style={[
           styles.action,
-          {
-            backgroundColor:
-              actionTone === "primary"
-                ? theme.colors.primary
-                : theme.colors.surfaceContainerHighest,
-          },
+          actionThemeStyle,
         ]}
       >
         {busy ? (
@@ -165,6 +167,31 @@ function AllocationRow({
       </AppPressable>
     </View>
   );
+}
+
+function getRowThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getDotThemeStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
+}
+
+function getActionThemeStyle(
+  theme: AppTheme,
+  actionTone: "primary" | "secondary",
+): ViewStyle {
+  return {
+    backgroundColor:
+      actionTone === "primary"
+        ? theme.colors.primary
+        : theme.colors.surfaceContainerHighest,
+  };
 }
 
 function formatBillDate(timestamp: number) {

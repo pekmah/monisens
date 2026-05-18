@@ -1,9 +1,16 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type TextStyle, type ViewStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { ProgressBar, SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { HOT_UPDATER_BASE_URL, useOtaUpdateStatus } from "@/lib/ota-updates";
@@ -22,17 +29,16 @@ export function UpdateCard() {
           : theme.colors.primary;
   const progressValue =
     ota.status === "downloading" || ota.isUpdateDownloaded ? progress : 0;
+  const iconTileThemeStyle = getIconTileThemeStyle(theme);
+  const statusPanelThemeStyle = getStatusPanelThemeStyle(theme);
+  const statusTextThemeStyle = getTextColorThemeStyle(statusColor);
+  const statusPillThemeStyle = getStatusPillThemeStyle(statusColor);
 
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.header}>
-        <View
-          style={[
-            styles.iconTile,
-            { backgroundColor: `${theme.colors.secondary}14` },
-          ]}
-        >
-          <Feather color={theme.colors.secondary} name="download-cloud" size={18} />
+        <View style={[styles.iconTile, iconTileThemeStyle]}>
+          <Feather color={theme.colors.secondary} name="download-cloud" size={Sizes.xl} />
         </View>
         <View style={styles.headerCopy}>
           <AppText style={styles.title} variant="titleMd">
@@ -45,17 +51,11 @@ export function UpdateCard() {
       </View>
 
       <View
-        style={[
-          styles.statusPanel,
-          {
-            backgroundColor: theme.colors.surfaceContainerLow,
-            borderColor: theme.colors.outlineVariant,
-          },
-        ]}
+        style={[styles.statusPanel, statusPanelThemeStyle]}
       >
         <View style={styles.statusHeader}>
           <View style={styles.statusCopy}>
-            <AppText style={[styles.statusLabel, { color: statusColor }]} variant="labelMd">
+            <AppText style={[styles.statusLabel, statusTextThemeStyle]} variant="labelMd">
               {getStatusEyebrow(ota.status)}
             </AppText>
             <AppText style={styles.statusTitle} variant="titleMd">
@@ -65,10 +65,10 @@ export function UpdateCard() {
           <View
             style={[
               styles.statusPill,
-              { backgroundColor: `${statusColor}16`, borderColor: `${statusColor}32` },
+              statusPillThemeStyle,
             ]}
           >
-            <AppText style={[styles.statusPillText, { color: statusColor }]} variant="labelMd">
+            <AppText style={[styles.statusPillText, statusTextThemeStyle]} variant="labelMd">
               {progressValue}%
             </AppText>
           </View>
@@ -109,16 +109,14 @@ function MetricTile({
   wide?: boolean;
 }) {
   const theme = useAppTheme();
+  const metricTileThemeStyle = getMetricTileThemeStyle(theme);
 
   return (
     <View
       style={[
         styles.metricTile,
         wide && styles.metricTileWide,
-        {
-          backgroundColor: theme.colors.surfaceContainer,
-          borderColor: theme.colors.outlineVariant,
-        },
+        metricTileThemeStyle,
       ]}
     >
       <AppText color="mutedText" style={styles.metricLabel} variant="labelMd">
@@ -129,6 +127,39 @@ function MetricTile({
       </AppText>
     </View>
   );
+}
+
+function getIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.secondary}14`,
+  };
+}
+
+function getStatusPanelThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getTextColorThemeStyle(color: string): TextStyle {
+  return {
+    color,
+  };
+}
+
+function getStatusPillThemeStyle(statusColor: string): ViewStyle {
+  return {
+    backgroundColor: `${statusColor}16`,
+    borderColor: `${statusColor}32`,
+  };
+}
+
+function getMetricTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainer,
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 function getStatusEyebrow(status: ReturnType<typeof useOtaUpdateStatus>["status"]) {

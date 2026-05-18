@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, Switch, View } from "react-native";
+import { StyleSheet, Switch, View, type ViewStyle } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { AppPressable } from "@/components/base/app-pressable";
@@ -39,12 +39,14 @@ export function SettingsGroupCard({ group }: SettingsGroupCardProps) {
     group.tone === "tertiary"
       ? theme.colors.tertiaryFixed
       : theme.colors.primaryFixed;
+  const iconTileThemeStyle = getIconTileThemeStyle(toneColor);
+  const cardGlowThemeStyle = getCardGlowThemeStyle(toneBackground);
 
   return (
     <SurfaceCard style={styles.group}>
       <View style={styles.groupHeader}>
-        <View style={[styles.iconTile, { backgroundColor: `${toneColor}14` }]}>
-          <Feather color={toneColor} name={group.icon} size={18} />
+        <View style={[styles.iconTile, iconTileThemeStyle]}>
+          <Feather color={toneColor} name={group.icon} size={Sizes.xl} />
         </View>
         <AppText style={styles.groupTitle} variant="titleMd">
           {group.title}
@@ -90,11 +92,23 @@ export function SettingsGroupCard({ group }: SettingsGroupCardProps) {
       <View
         style={[
           styles.cardGlow,
-          { backgroundColor: toneBackground },
+          cardGlowThemeStyle,
         ]}
       />
     </SurfaceCard>
   );
+}
+
+function getIconTileThemeStyle(toneColor: string): ViewStyle {
+  return {
+    backgroundColor: `${toneColor}14`,
+  };
+}
+
+function getCardGlowThemeStyle(toneBackground: string): ViewStyle {
+  return {
+    backgroundColor: toneBackground,
+  };
 }
 
 const styles = StyleSheet.create({

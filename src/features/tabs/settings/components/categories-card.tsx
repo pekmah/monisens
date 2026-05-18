@@ -1,10 +1,17 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppButton, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFinance } from "@/lib/finance";
@@ -14,12 +21,14 @@ export function CategoriesCard() {
   const { snapshot } = useFinance();
   const categories = snapshot?.categories ?? [];
   const defaultCount = categories.filter((category) => category.isDefault).length;
+  const iconTileThemeStyle = getIconTileThemeStyle(theme);
+  const statusCardThemeStyle = getStatusCardThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.header}>
-        <View style={[styles.iconTile, { backgroundColor: `${theme.colors.tertiary}14` }]}>
-          <Feather color={theme.colors.tertiary} name="tag" size={18} />
+        <View style={[styles.iconTile, iconTileThemeStyle]}>
+          <Feather color={theme.colors.tertiary} name="tag" size={Sizes.xl} />
         </View>
         <View style={styles.headerCopy}>
           <AppText style={styles.title} variant="titleMd">
@@ -32,13 +41,7 @@ export function CategoriesCard() {
       </View>
 
       <View
-        style={[
-          styles.statusCard,
-          {
-            backgroundColor: theme.colors.surfaceContainerLow,
-            borderColor: theme.colors.outlineVariant,
-          },
-        ]}
+        style={[styles.statusCard, statusCardThemeStyle]}
       >
         <View style={styles.metricRow}>
           <Metric label="Total" value={String(categories.length)} />
@@ -56,17 +59,10 @@ export function CategoriesCard() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme();
+  const metricThemeStyle = getMetricThemeStyle(theme);
 
   return (
-    <View
-      style={[
-        styles.metric,
-        {
-          backgroundColor: theme.colors.surfaceContainerLowest,
-          borderColor: theme.colors.outlineVariant,
-        },
-      ]}
-    >
+    <View style={[styles.metric, metricThemeStyle]}>
       <AppText color="mutedText" style={styles.metricLabel} variant="labelMd">
         {label}
       </AppText>
@@ -75,6 +71,26 @@ function Metric({ label, value }: { label: string; value: string }) {
       </AppText>
     </View>
   );
+}
+
+function getIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.tertiary}14`,
+  };
+}
+
+function getStatusCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getMetricThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 const styles = StyleSheet.create({

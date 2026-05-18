@@ -1,10 +1,16 @@
 import { router } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type TextStyle, type ViewStyle } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type TransactionListItemData = {
@@ -24,29 +30,21 @@ export type TransactionListItemProps = {
 export function TransactionListItem({ transaction }: TransactionListItemProps) {
   const theme = useAppTheme();
   const initials = getInitials(transaction.title);
+  const itemThemeStyle = getItemThemeStyle(theme);
+  const accentThemeStyle = getBackgroundThemeStyle(transaction.accent);
+  const iconThemeStyle = getIconThemeStyle(theme);
+  const accentTextThemeStyle = getTextColorThemeStyle(transaction.accent);
 
   return (
     <AppPressable
       onPress={() => router.push(`/transactions/${transaction.id}`)}
-      style={[
-        styles.item,
-        theme.elevation.ambient,
-        {
-          backgroundColor: theme.colors.surfaceContainerLowest,
-          shadowColor: theme.colors.onSurface,
-        },
-      ]}
+      style={[styles.item, theme.elevation.ambient, itemThemeStyle]}
     >
-      <View style={[styles.accent, { backgroundColor: transaction.accent }]} />
-      <View
-        style={[
-          styles.icon,
-          { backgroundColor: theme.colors.surfaceContainer },
-        ]}
-      >
+      <View style={[styles.accent, accentThemeStyle]} />
+      <View style={[styles.icon, iconThemeStyle]}>
         <AppText
           numberOfLines={1}
-          style={[styles.initials, { color: transaction.accent }]}
+          style={[styles.initials, accentTextThemeStyle]}
           variant="labelMd"
         >
           {initials}
@@ -68,7 +66,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           <View style={styles.metaDot} />
           <AppText
             numberOfLines={1}
-            style={[styles.category, { color: transaction.accent }]}
+            style={[styles.category, accentTextThemeStyle]}
             variant="labelMd"
           >
             {transaction.category.toUpperCase()}
@@ -92,6 +90,31 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
       </View>
     </AppPressable>
   );
+}
+
+function getItemThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    shadowColor: theme.colors.onSurface,
+  };
+}
+
+function getBackgroundThemeStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
+}
+
+function getIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainer,
+  };
+}
+
+function getTextColorThemeStyle(color: string): TextStyle {
+  return {
+    color,
+  };
 }
 
 function getInitials(name: string) {
@@ -165,6 +188,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    marginHorizontal: Sizes.xs,
   },
   metaDot: {
     backgroundColor: "rgba(112,122,108,0.55)",

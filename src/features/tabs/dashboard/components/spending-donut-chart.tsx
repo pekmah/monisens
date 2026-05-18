@@ -1,8 +1,8 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
 
 import { AppText } from "@/components/base/app-text";
-import { Sizes } from "@/constants/theme";
+import { Sizes, type AppTheme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type SpendingDonutChartItem = {
@@ -30,6 +30,7 @@ export function SpendingDonutChart({
 }: SpendingDonutChartProps) {
   const theme = useAppTheme();
   const total = data.reduce((sum, item) => sum + item.amount, 0);
+  const centerThemeStyle = getCenterThemeStyle(theme);
   let offset = Sizes.none;
 
   return (
@@ -72,12 +73,7 @@ export function SpendingDonutChart({
           })}
         </G>
       </Svg>
-      <View
-        style={[
-          styles.center,
-          { backgroundColor: theme.colors.surfaceContainerLow },
-        ]}
-      >
+      <View style={[styles.center, centerThemeStyle]}>
         <AppText style={styles.amount} variant="titleMd">
           {totalLabel}
         </AppText>
@@ -87,6 +83,12 @@ export function SpendingDonutChart({
       </View>
     </View>
   );
+}
+
+function getCenterThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+  };
 }
 
 const styles = StyleSheet.create({

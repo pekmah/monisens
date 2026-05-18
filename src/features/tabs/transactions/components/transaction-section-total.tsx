@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, type TextStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
@@ -23,11 +23,12 @@ export function TransactionSectionTotal({
       : total.signedMinor < 0
         ? theme.colors.error
         : theme.colors.mutedText;
+  const totalThemeStyle = getTotalThemeStyle(color);
 
   return (
     <AppText
       numberOfLines={1}
-      style={[styles.total, { color }]}
+      style={[styles.total, totalThemeStyle]}
       variant="labelMd"
     >
       {formatSectionTotal(total.signedMinor, total.currency)}
@@ -58,6 +59,12 @@ function formatSectionTotal(signedMinor: number, currency: string) {
 
   const prefix = signedMinor > 0 ? "+ " : "- ";
   return `${prefix}${formatMoney(Math.abs(signedMinor), currency)}`;
+}
+
+function getTotalThemeStyle(color: string): TextStyle {
+  return {
+    color,
+  };
 }
 
 const styles = StyleSheet.create({

@@ -1,10 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { StyleSheet } from "react-native";
+import { StyleSheet, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppPressable, AppText } from "@/components/base";
-import { Radii, Sizes, Spacing } from "@/constants/theme";
+import { Radii, Sizes, Spacing, type AppTheme } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
   TransactionList,
@@ -27,6 +27,7 @@ export default function TransactionsScreen() {
       ? error
       : "No transactions match this search.";
   const footerTone = error ? "error" : "mutedText";
+  const fabStyle = getFabThemeStyle(theme, insets.bottom);
   // Keeping the search input inside the list header gives FlashList one scroll
   // owner and keeps keyboard tap handling attached to that owner.
   const listHeader = (
@@ -38,7 +39,7 @@ export default function TransactionsScreen() {
   );
 
   return (
-    <TabScreen>
+    <TabScreen style={styles.screen}>
       <TransactionList
         contentBottomPadding={contentBottomPadding}
         footer={
@@ -53,18 +54,23 @@ export default function TransactionsScreen() {
       <AppPressable
         accessibilityLabel="Add transaction"
         onPress={() => router.push("/transactions/new")}
-        style={[
-          styles.fab,
-          {
-            backgroundColor: theme.colors.primary,
-            bottom: Math.max(insets.bottom, Spacing.lg) + Sizes["6xl"],
-          },
-        ]}
+        style={[styles.fab, fabStyle]}
       >
-        <Feather color={theme.colors.onPrimary} name="plus" size={Sizes["3xl"]} />
+        <Feather
+          color={theme.colors.onPrimary}
+          name="plus"
+          size={Sizes["3xl"]}
+        />
       </AppPressable>
     </TabScreen>
   );
+}
+
+function getFabThemeStyle(theme: AppTheme, bottomInset: number): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primary,
+    bottom: Math.max(bottomInset, Spacing.lg) + Sizes["6xl"],
+  };
 }
 
 const styles = StyleSheet.create({
@@ -77,5 +83,8 @@ const styles = StyleSheet.create({
     right: Spacing.xl,
     width: Sizes["11xl"],
     zIndex: 2,
+  },
+  screen: {
+    paddingHorizontal: Spacing.md,
   },
 });

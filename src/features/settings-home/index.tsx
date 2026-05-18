@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppPressable, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
@@ -10,6 +10,7 @@ import {
   Radii,
   Sizes,
   Spacing,
+  type AppTheme,
 } from "@/constants/theme";
 import { SurfaceCard, TabScreen } from "@/features/tabs/_components";
 import {
@@ -69,6 +70,8 @@ export default function SettingsHomeScreen() {
   const { snapshot } = useFinance();
   const smsCount = snapshot?.sms.candidateCount ?? 0;
   const categoryCount = snapshot?.categories.length ?? 0;
+  const rowThemeStyle = getRowThemeStyle(theme);
+  const iconTileThemeStyle = getIconTileThemeStyle(theme);
 
   return (
     <TabScreen>
@@ -93,24 +96,13 @@ export default function SettingsHomeScreen() {
                 <AppPressable
                   key={section.title}
                   onPress={() => router.push(section.route as never)}
-                  style={[
-                    styles.row,
-                    {
-                      backgroundColor: theme.colors.surfaceContainerLow,
-                      borderColor: theme.colors.outlineVariant,
-                    },
-                  ]}
+                  style={[styles.row, rowThemeStyle]}
                 >
-                  <View
-                    style={[
-                      styles.iconTile,
-                      { backgroundColor: `${theme.colors.primary}14` },
-                    ]}
-                  >
+                  <View style={[styles.iconTile, iconTileThemeStyle]}>
                     <Feather
                       color={theme.colors.primary}
                       name={section.icon}
-                      size={18}
+                      size={Sizes.xl}
                     />
                   </View>
                   <View style={styles.rowCopy}>
@@ -140,6 +132,19 @@ export default function SettingsHomeScreen() {
       </ScrollView>
     </TabScreen>
   );
+}
+
+function getRowThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.primary}14`,
+  };
 }
 
 const styles = StyleSheet.create({

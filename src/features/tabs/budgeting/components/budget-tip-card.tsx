@@ -1,23 +1,30 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatMoney } from "@/lib/finance";
 
 export function BudgetTipCard() {
   const theme = useAppTheme();
+  const iconThemeStyle = getIconThemeStyle(theme);
+  const savingsPillThemeStyle = getSavingsPillThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card} tone="low">
       <View style={styles.topRow}>
-        <View
-          style={[styles.icon, { backgroundColor: theme.colors.tertiaryFixed }]}
-        >
-          <Feather color={theme.colors.tertiary} name="zap" size={18} />
+        <View style={[styles.icon, iconThemeStyle]}>
+          <Feather color={theme.colors.tertiary} name="zap" size={Sizes.xl} />
         </View>
         <View style={styles.copy}>
           <AppText color="tertiary" style={styles.overline} variant="labelMd">
@@ -25,12 +32,7 @@ export function BudgetTipCard() {
           </AppText>
           <AppText variant="titleMd">Trim unused subscriptions</AppText>
         </View>
-        <View
-          style={[
-            styles.savingsPill,
-            { backgroundColor: theme.colors.surfaceContainerLowest },
-          ]}
-        >
+        <View style={[styles.savingsPill, savingsPillThemeStyle]}>
           <AppText color="primary" style={styles.savings} variant="labelMd">
             {formatMoney(120000, "KES")}
           </AppText>
@@ -48,6 +50,18 @@ export function BudgetTipCard() {
       </View>
     </SurfaceCard>
   );
+}
+
+function getIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.tertiaryFixed,
+  };
+}
+
+function getSavingsPillThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+  };
 }
 
 const styles = StyleSheet.create({

@@ -1,8 +1,15 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatSignedMoney, type TransactionRecord } from "@/lib/finance";
@@ -13,11 +20,13 @@ export function TransactionHeroCard({
   transaction: TransactionRecord;
 }) {
   const theme = useAppTheme();
+  const iconThemeStyle = getIconThemeStyle(theme);
+  const dividerThemeStyle = getDividerThemeStyle(theme);
 
   return (
     <SurfaceCard elevated style={styles.hero}>
       <View style={styles.topRow}>
-        <View style={[styles.icon, { backgroundColor: theme.colors.primaryFixed }]}>
+        <View style={[styles.icon, iconThemeStyle]}>
           <AppText color="onPrimaryFixed" style={styles.initials} variant="labelMd">
             {getInitials(transaction.merchant)}
           </AppText>
@@ -40,7 +49,7 @@ export function TransactionHeroCard({
         </AppText>
       </View>
 
-      <View style={[styles.divider, { backgroundColor: theme.colors.outlineVariant }]} />
+      <View style={[styles.divider, dividerThemeStyle]} />
 
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
@@ -62,6 +71,18 @@ export function TransactionHeroCard({
       </View>
     </SurfaceCard>
   );
+}
+
+function getIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primaryFixed,
+  };
+}
+
+function getDividerThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.outlineVariant,
+  };
 }
 
 function getInitials(name: string) {

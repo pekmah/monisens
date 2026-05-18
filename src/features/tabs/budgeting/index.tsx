@@ -1,10 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppButton, AppText, AppTextInput, CategorySelectField } from "@/components/base";
-import { Radii, Sizes, Spacing } from "@/constants/theme";
+import { Radii, Sizes, Spacing, type AppTheme } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
   BudgetOverviewCard,
@@ -21,6 +21,7 @@ export default function BudgetingScreen() {
   const [categoryId, setCategoryId] = useState(snapshot?.categories[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
+  const createCardThemeStyle = getCreateCardThemeStyle(theme);
 
   useEffect(() => {
     if (!categoryId && snapshot?.categories[0]) {
@@ -54,7 +55,7 @@ export default function BudgetingScreen() {
           <View
             style={[
               styles.createCard,
-              { backgroundColor: theme.colors.surfaceContainerLow },
+              createCardThemeStyle,
             ]}
           >
             <AppText variant="titleMd">New budget envelope</AppText>
@@ -112,6 +113,8 @@ function BillsPlanningCard({
   scheduleCount: number;
 }) {
   const theme = useAppTheme();
+  const billsCardThemeStyle = getBillsCardThemeStyle(theme);
+  const billsIconThemeStyle = getBillsIconThemeStyle(theme);
   const status =
     overdueCount > 0
       ? `${overdueCount} overdue`
@@ -125,17 +128,12 @@ function BillsPlanningCard({
     <View
       style={[
         styles.billsCard,
-        { backgroundColor: theme.colors.surfaceContainerLowest },
+        billsCardThemeStyle,
       ]}
     >
       <View style={styles.billsHeader}>
-        <View
-          style={[
-            styles.billsIcon,
-            { backgroundColor: `${theme.colors.secondary}14` },
-          ]}
-        >
-          <Feather color={theme.colors.secondary} name="calendar" size={18} />
+        <View style={[styles.billsIcon, billsIconThemeStyle]}>
+          <Feather color={theme.colors.secondary} name="calendar" size={Sizes.xl} />
         </View>
         <View style={styles.billsCopy}>
           <AppText variant="titleMd">Bills planning</AppText>
@@ -156,6 +154,24 @@ function BillsPlanningCard({
       />
     </View>
   );
+}
+
+function getCreateCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+  };
+}
+
+function getBillsCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+  };
+}
+
+function getBillsIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.secondary}14`,
+  };
 }
 
 function BillMetric({ label, value }: { label: string; value: string }) {

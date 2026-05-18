@@ -1,11 +1,17 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type TextStyle, type ViewStyle } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 import type { ComponentProps } from "react";
@@ -34,40 +40,32 @@ export function TransactionRow({
   const theme = useAppTheme();
   const isIncome = amount.startsWith("+");
   const amountColor = isIncome ? theme.colors.primary : theme.colors.text;
+  const rowThemeStyle = getRowThemeStyle(theme);
+  const iconWrapThemeStyle = getIconWrapThemeStyle(bg);
+  const accentBarThemeStyle = getAccentBarThemeStyle(accent);
+  const amountThemeStyle = getAmountThemeStyle(amountColor);
 
   return (
     <AppPressable
       onPress={() => router.push(`/transactions/${id}`)}
-      style={[
-        styles.row,
-        {
-          backgroundColor: theme.colors.surfaceContainerLowest,
-          borderColor: theme.colors.outlineVariant,
-        },
-      ]}
+      style={[styles.row, rowThemeStyle]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: bg }]}>
+      <View style={[styles.iconWrap, iconWrapThemeStyle]}>
         <Feather color={accent} name={icon} size={Sizes["2xl"]} />
       </View>
-      <View style={[styles.accentBar, { backgroundColor: accent }]} />
+      <View style={[styles.accentBar, accentBarThemeStyle]} />
       <View style={styles.copy}>
         <View style={styles.details}>
-          <View style={{ flex: 1 }}>
+          <View style={styles.flex}>
             <AppText numberOfLines={1} style={styles.title} variant="titleMd">
               {title}asdfasdfasdfasdfasdfasdfasd
             </AppText>
           </View>
 
-          <View
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              justifyContent: "flex-end",
-            }}
-          >
+          <View style={styles.amountWrap}>
             <AppText
               numberOfLines={1}
-              style={[styles.amount, { color: amountColor }]}
+              style={[styles.amount, amountThemeStyle]}
               variant="labelMd"
             >
               {amount}
@@ -75,11 +73,7 @@ export function TransactionRow({
           </View>
         </View>
 
-        <View
-          style={{
-            flex: 1,
-          }}
-        >
+        <View style={styles.flex}>
           <AppText color="mutedText" style={styles.meta} variant="labelMd">
             {meta}
           </AppText>
@@ -87,6 +81,31 @@ export function TransactionRow({
       </View>
     </AppPressable>
   );
+}
+
+function getRowThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getIconWrapThemeStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
+}
+
+function getAccentBarThemeStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
+}
+
+function getAmountThemeStyle(color: string): TextStyle {
+  return {
+    color,
+  };
 }
 
 const styles = StyleSheet.create({
@@ -116,6 +135,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Sizes.xs,
+  },
+  amountWrap: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  flex: {
+    flex: 1,
   },
   iconWrap: {
     alignItems: "center",

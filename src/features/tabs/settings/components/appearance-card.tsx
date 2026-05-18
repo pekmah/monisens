@@ -1,9 +1,16 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, Switch, View } from "react-native";
+import { StyleSheet, Switch, View, type ViewStyle } from "react-native";
 
 import { AppFlashList, AppPressable, AppText } from "@/components/base";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { DEFAULT_FONT_SCALE, getFontScaleLabel } from "@/lib/font-scale";
@@ -35,17 +42,27 @@ export function AppearanceCard() {
     : `Following system ${systemColorScheme}`;
   const textScaleLabel = getFontScaleLabel(fontScale);
   const fontPercentage = `${Math.round(fontScale * 100)}%`;
+  const iconTileThemeStyle = getIconTileThemeStyle(theme);
+  const segmentThemeStyle = getSegmentThemeStyle(theme);
+  const systemButtonThemeStyle = getOutlineThemeStyle(theme);
+  const fontSectionThemeStyle = getSegmentThemeStyle(theme);
+  const fontIconTileThemeStyle = getFontIconTileThemeStyle(theme);
+  const decreaseButtonThemeStyle = getFontButtonThemeStyle(
+    theme,
+    canDecreaseFontScale,
+  );
+  const fontPreviewThemeStyle = getFontPreviewThemeStyle(theme);
+  const increaseButtonThemeStyle = getFontButtonThemeStyle(
+    theme,
+    canIncreaseFontScale,
+  );
+  const resetButtonThemeStyle = getOutlineThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card}>
       <View style={styles.header}>
-        <View
-          style={[
-            styles.iconTile,
-            { backgroundColor: `${theme.colors.secondary}14` },
-          ]}
-        >
-          <Feather color={theme.colors.secondary} name="monitor" size={18} />
+        <View style={[styles.iconTile, iconTileThemeStyle]}>
+          <Feather color={theme.colors.secondary} name="monitor" size={Sizes.xl} />
         </View>
         <View style={styles.headerCopy}>
           <AppText style={styles.title} variant="titleMd">
@@ -69,7 +86,7 @@ export function AppearanceCard() {
       <View
         style={[
           styles.segment,
-          { backgroundColor: theme.colors.surfaceContainerLow },
+          segmentThemeStyle,
         ]}
       >
         <AppFlashList
@@ -78,24 +95,22 @@ export function AppearanceCard() {
           keyExtractor={(mode) => mode.value}
           renderItem={({ item: mode }) => {
             const selected = colorScheme === mode.value;
+            const selectedSegmentButtonThemeStyle = selected
+              ? getSelectedSegmentButtonThemeStyle(theme)
+              : undefined;
 
             return (
               <AppPressable
                 onPress={() => setThemeOverride(mode.value)}
                 style={[
                   styles.segmentButton,
-                  selected
-                    ? {
-                        backgroundColor: theme.colors.surfaceContainerLowest,
-                        borderColor: theme.colors.outlineVariant,
-                      }
-                    : undefined,
+                  selectedSegmentButtonThemeStyle,
                 ]}
               >
                 <Feather
                   color={selected ? theme.colors.primary : theme.colors.mutedText}
                   name={mode.icon}
-                  size={16}
+                  size={Sizes.lg}
                 />
                 <AppText
                   color={selected ? "primary" : "mutedText"}
@@ -117,10 +132,10 @@ export function AppearanceCard() {
           onPress={() => setThemeOverride(null)}
           style={[
             styles.systemButton,
-            { borderColor: theme.colors.outlineVariant },
+            systemButtonThemeStyle,
           ]}
         >
-          <Feather color={theme.colors.outline} name="smartphone" size={16} />
+          <Feather color={theme.colors.outline} name="smartphone" size={Sizes.lg} />
           <AppText color="mutedText" style={styles.systemText} variant="labelMd">
             Use system appearance
           </AppText>
@@ -130,17 +145,17 @@ export function AppearanceCard() {
       <View
         style={[
           styles.fontSection,
-          { backgroundColor: theme.colors.surfaceContainerLow },
+          fontSectionThemeStyle,
         ]}
       >
         <View style={styles.fontHeader}>
           <View
             style={[
               styles.fontIconTile,
-              { backgroundColor: `${theme.colors.primary}14` },
+              fontIconTileThemeStyle,
             ]}
           >
-            <Feather color={theme.colors.primary} name="type" size={16} />
+            <Feather color={theme.colors.primary} name="type" size={Sizes.lg} />
           </View>
           <View style={styles.fontCopy}>
             <AppText style={styles.title} variant="titleMd">
@@ -158,12 +173,7 @@ export function AppearanceCard() {
             onPress={decreaseFontScale}
             style={[
               styles.fontButton,
-              {
-                backgroundColor: canDecreaseFontScale
-                  ? theme.colors.surfaceContainerLowest
-                  : theme.colors.surfaceContainerHighest,
-                borderColor: theme.colors.outlineVariant,
-              },
+              decreaseButtonThemeStyle,
             ]}
           >
             <Feather
@@ -171,17 +181,14 @@ export function AppearanceCard() {
                 canDecreaseFontScale ? theme.colors.text : theme.colors.outline
               }
               name="minus"
-              size={16}
+              size={Sizes.lg}
             />
           </AppPressable>
 
           <View
             style={[
               styles.fontPreview,
-              {
-                backgroundColor: theme.colors.surfaceContainerLowest,
-                borderColor: theme.colors.outlineVariant,
-              },
+              fontPreviewThemeStyle,
             ]}
           >
             <AppText scaleBehavior="always" style={styles.previewTitle} variant="labelMd">
@@ -197,12 +204,7 @@ export function AppearanceCard() {
             onPress={increaseFontScale}
             style={[
               styles.fontButton,
-              {
-                backgroundColor: canIncreaseFontScale
-                  ? theme.colors.surfaceContainerLowest
-                  : theme.colors.surfaceContainerHighest,
-                borderColor: theme.colors.outlineVariant,
-              },
+              increaseButtonThemeStyle,
             ]}
           >
             <Feather
@@ -210,7 +212,7 @@ export function AppearanceCard() {
                 canIncreaseFontScale ? theme.colors.text : theme.colors.outline
               }
               name="plus"
-              size={16}
+              size={Sizes.lg}
             />
           </AppPressable>
         </View>
@@ -224,7 +226,7 @@ export function AppearanceCard() {
               onPress={() => setFontScale(DEFAULT_FONT_SCALE)}
               style={[
                 styles.resetButton,
-                { borderColor: theme.colors.outlineVariant },
+                resetButtonThemeStyle,
               ]}
             >
               <AppText color="mutedText" style={styles.systemText} variant="labelMd">
@@ -236,6 +238,56 @@ export function AppearanceCard() {
       </View>
     </SurfaceCard>
   );
+}
+
+function getIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.secondary}14`,
+  };
+}
+
+function getSegmentThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+  };
+}
+
+function getSelectedSegmentButtonThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getOutlineThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getFontIconTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.primary}14`,
+  };
+}
+
+function getFontButtonThemeStyle(
+  theme: AppTheme,
+  enabled: boolean,
+): ViewStyle {
+  return {
+    backgroundColor: enabled
+      ? theme.colors.surfaceContainerLowest
+      : theme.colors.surfaceContainerHighest,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getFontPreviewThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 const styles = StyleSheet.create({

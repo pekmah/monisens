@@ -1,23 +1,31 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export function SuggestionCard() {
   const theme = useAppTheme();
+  const iconThemeStyle = getIconThemeStyle(theme);
+  const secondaryActionThemeStyle = getSecondaryActionThemeStyle(theme);
+  const primaryActionThemeStyle = getPrimaryActionThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card} tone="low">
       <View style={styles.topRow}>
-        <View
-          style={[styles.icon, { backgroundColor: theme.colors.tertiaryFixed }]}
-        >
-          <Feather color={theme.colors.tertiary} name="zap" size={18} />
+        <View style={[styles.icon, iconThemeStyle]}>
+          <Feather color={theme.colors.tertiary} name="zap" size={Sizes.xl} />
         </View>
         <View style={styles.copy}>
           <AppText color="tertiary" style={styles.overline} variant="labelMd">
@@ -36,7 +44,7 @@ export function SuggestionCard() {
         <AppPressable
           style={[
             styles.secondaryAction,
-            { borderColor: theme.colors.outlineVariant },
+            secondaryActionThemeStyle,
           ]}
         >
           <AppText style={styles.secondaryActionText} variant="labelMd">
@@ -44,7 +52,7 @@ export function SuggestionCard() {
           </AppText>
         </AppPressable>
         <AppPressable
-          style={[styles.primaryAction, { backgroundColor: theme.colors.primary }]}
+          style={[styles.primaryAction, primaryActionThemeStyle]}
         >
           <AppText color="onPrimary" style={styles.primaryActionText} variant="labelMd">
             Keep category
@@ -53,6 +61,24 @@ export function SuggestionCard() {
       </View>
     </SurfaceCard>
   );
+}
+
+function getIconThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.tertiaryFixed,
+  };
+}
+
+function getSecondaryActionThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getPrimaryActionThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primary,
+  };
 }
 
 const styles = StyleSheet.create({

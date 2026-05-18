@@ -1,10 +1,17 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type TextStyle, type ViewStyle } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { SurfaceCard } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import type { InsightSubscriptionRecord } from "@/lib/finance";
@@ -19,6 +26,8 @@ export function SubscriptionsCard({
   subscriptions,
 }: SubscriptionsCardProps) {
   const theme = useAppTheme();
+  const logoTileThemeStyle = getLogoTileThemeStyle(theme);
+  const setupButtonThemeStyle = getSetupButtonThemeStyle(theme);
 
   return (
     <SurfaceCard style={styles.card}>
@@ -37,50 +46,49 @@ export function SubscriptionsCard({
           data={subscriptions}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           keyExtractor={(subscription) => subscription.id}
-          renderItem={({ item: subscription }) => (
-            <View style={styles.row}>
-              <View
-                style={[
-                  styles.logoTile,
-                  {
-                    backgroundColor: theme.colors.surfaceContainer,
-                    borderColor: theme.colors.outlineVariant,
-                  },
-                ]}
-              >
-                <AppText
-                  style={[styles.logoText, { color: subscription.accent }]}
-                  variant="labelMd"
-                >
-                  {getInitials(subscription.title)}
-                </AppText>
-              </View>
-              <View style={styles.copy}>
-                <AppText style={styles.subscriptionTitle} variant="labelMd">
-                  {subscription.title}
-                </AppText>
-                <AppText color="mutedText" style={styles.meta} variant="bodyMd">
-                  {subscription.meta}
-                </AppText>
-              </View>
-              <AppText style={styles.amount} variant="labelMd">
-                {subscription.amount}
-              </AppText>
-              {onSetUpBill ? (
-                <AppPressable
-                  onPress={() => onSetUpBill(subscription)}
-                  style={[
-                    styles.setupButton,
-                    { backgroundColor: theme.colors.primary },
-                  ]}
-                >
-                  <AppText color="onPrimary" style={styles.setupText} variant="labelMd">
-                    Set up
+          renderItem={({ item: subscription }) => {
+            const logoTextThemeStyle = getLogoTextThemeStyle(
+              subscription.accent,
+            );
+
+            return (
+              <View style={styles.row}>
+                <View style={[styles.logoTile, logoTileThemeStyle]}>
+                  <AppText
+                    style={[styles.logoText, logoTextThemeStyle]}
+                    variant="labelMd"
+                  >
+                    {getInitials(subscription.title)}
                   </AppText>
-                </AppPressable>
-              ) : null}
-            </View>
-          )}
+                </View>
+                <View style={styles.copy}>
+                  <AppText style={styles.subscriptionTitle} variant="labelMd">
+                    {subscription.title}
+                  </AppText>
+                  <AppText color="mutedText" style={styles.meta} variant="bodyMd">
+                    {subscription.meta}
+                  </AppText>
+                </View>
+                <AppText style={styles.amount} variant="labelMd">
+                  {subscription.amount}
+                </AppText>
+                {onSetUpBill ? (
+                  <AppPressable
+                    onPress={() => onSetUpBill(subscription)}
+                    style={[styles.setupButton, setupButtonThemeStyle]}
+                  >
+                    <AppText
+                      color="onPrimary"
+                      style={styles.setupText}
+                      variant="labelMd"
+                    >
+                      Set up
+                    </AppText>
+                  </AppPressable>
+                ) : null}
+              </View>
+            );
+          }}
         />
       ) : (
         <AppText color="mutedText" variant="bodyMd">
@@ -89,6 +97,25 @@ export function SubscriptionsCard({
       )}
     </SurfaceCard>
   );
+}
+
+function getLogoTileThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainer,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getLogoTextThemeStyle(color: string): TextStyle {
+  return {
+    color,
+  };
+}
+
+function getSetupButtonThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primary,
+  };
 }
 
 function getInitials(title: string) {

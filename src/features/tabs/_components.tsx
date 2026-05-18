@@ -1,20 +1,37 @@
 import { Feather } from "@expo/vector-icons";
-import { StyleSheet, View, type ViewStyle } from "react-native";
+import {
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewProps,
+  type ViewStyle,
+} from "react-native";
 
 import { AppPressable } from "@/components/base/app-pressable";
 import { AppText } from "@/components/base/app-text";
-import { Radii, Sizes, Spacing } from "@/constants/theme";
+import { Radii, Sizes, Spacing, type AppTheme } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 import type { ComponentProps, PropsWithChildren } from "react";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
-export function TabScreen({ children }: PropsWithChildren) {
+type TabScreenProps = PropsWithChildren<{
+  style?: StyleProp<ViewStyle>;
+}> &
+  ViewProps;
+
+export function TabScreen({ children, style, ...viewProps }: TabScreenProps) {
   const theme = useAppTheme();
+  const screenThemeStyle = getTabScreenThemeStyle(theme);
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+    <View
+      {...viewProps}
+      // Screens can layer local layout tweaks on top of the shared tab padding
+      // without reimplementing the tab surface wrapper in each feature.
+      style={[styles.screen, screenThemeStyle, style]}
+    >
       {children}
     </View>
   );
@@ -27,27 +44,17 @@ export function SurfaceCard({
   tone = "default",
 }: PropsWithChildren<{
   elevated?: boolean;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
   tone?: "default" | "low" | "highest" | "primary";
 }>) {
   const theme = useAppTheme();
-  const backgroundColor =
-    tone === "primary"
-      ? theme.colors.primary
-      : tone === "highest"
-        ? theme.colors.surfaceContainerHighest
-        : tone === "low"
-          ? theme.colors.surfaceContainerLow
-          : theme.colors.surfaceContainerLowest;
+  const cardThemeStyle = getSurfaceCardThemeStyle(theme, tone);
 
   return (
     <View
       style={[
         styles.card,
-        {
-          backgroundColor,
-          borderRadius: theme.radii.lg,
-        },
+        cardThemeStyle,
         elevated ? theme.elevation.ambient : undefined,
         style,
       ]}
@@ -68,6 +75,7 @@ export function MetricCard({
 }) {
   const theme = useAppTheme();
   const isPrimary = tone === "primary";
+  const metricGlowStyle = getMetricGlowThemeStyle(theme);
 
   return (
     <SurfaceCard
@@ -81,12 +89,7 @@ export function MetricCard({
         {value}
       </AppText>
       {isPrimary ? (
-        <View
-          style={[
-            styles.metricGlow,
-            { backgroundColor: theme.colors.primaryFixed },
-          ]}
-        />
+        <View style={[styles.metricGlow, metricGlowStyle]} />
       ) : null}
     </SurfaceCard>
   );
@@ -100,15 +103,11 @@ export function IconTile({
   icon: FeatherName;
 }) {
   const theme = useAppTheme();
+  const tileThemeStyle = getIconTileThemeStyle(theme, color);
 
   return (
-    <View
-      style={[
-        styles.tile,
-        { backgroundColor: color ?? theme.colors.surfaceContainerHigh },
-      ]}
-    >
-      <Feather color={theme.colors.primary} name={icon} size={18} />
+    <View style={[styles.tile, tileThemeStyle]}>
+      <Feather color={theme.colors.primary} name={icon} size={Sizes.xl} />
     </View>
   );
 }
@@ -128,8 +127,6 @@ export function RowItem({
   title: string;
   tone?: string;
 }) {
-  const theme = useAppTheme();
-
   return (
     <AppPressable onPress={onPress} style={styles.row}>
       <IconTile color={tone} icon={icon} />
@@ -142,11 +139,6 @@ export function RowItem({
       {amount ? (
         <AppText
           color={amount.startsWith("+") ? "primary" : "text"}
-          style={{
-            color: amount.startsWith("+")
-              ? theme.colors.primary
-              : theme.colors.text,
-          }}
           variant="labelMd"
         >
           {amount}
@@ -164,25 +156,68 @@ export function ProgressBar({
   progress: number;
 }) {
   const theme = useAppTheme();
+  const progressTrackThemeStyle = getProgressTrackThemeStyle(theme);
+  const progressFillThemeStyle = getProgressFillThemeStyle(theme, color, progress);
 
   return (
-    <View
-      style={[
-        styles.progressTrack,
-        { backgroundColor: theme.colors.text + "50" },
-      ]}
-    >
-      <View
-        style={[
-          styles.progressFill,
-          {
-            backgroundColor: color ?? theme.colors.primary,
-            width: `${Math.min(Math.max(progress, 0), 100)}%`,
-          },
-        ]}
-      />
+    <View style={[styles.progressTrack, progressTrackThemeStyle]}>
+      <View style={[styles.progressFill, progressFillThemeStyle]} />
     </View>
   );
+}
+
+function getTabScreenThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.background,
+  };
+}
+
+function getSurfaceCardThemeStyle(
+  theme: AppTheme,
+  tone: "default" | "low" | "highest" | "primary",
+): ViewStyle {
+  const backgroundColor =
+    tone === "primary"
+      ? theme.colors.primary
+      : tone === "highest"
+        ? theme.colors.surfaceContainerHighest
+        : tone === "low"
+          ? theme.colors.surfaceContainerLow
+          : theme.colors.surfaceContainerLowest;
+
+  return {
+    backgroundColor,
+    borderRadius: theme.radii.lg,
+  };
+}
+
+function getMetricGlowThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primaryFixed,
+  };
+}
+
+function getIconTileThemeStyle(theme: AppTheme, color?: string): ViewStyle {
+  return {
+    backgroundColor: color ?? theme.colors.surfaceContainerHigh,
+  };
+}
+
+function getProgressTrackThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.text}50`,
+  };
+}
+
+function getProgressFillThemeStyle(
+  theme: AppTheme,
+  color: string | undefined,
+  progress: number,
+): ViewStyle {
+  return {
+    backgroundColor: color ?? theme.colors.primary,
+    width: `${Math.min(Math.max(progress, 0), 100)}%`,
+  };
 }
 
 const styles = StyleSheet.create({

@@ -1,8 +1,15 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppText } from "@/components/base/app-text";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { ProgressBar } from "@/features/tabs/_components";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatMoney, type BudgetOverviewRecord } from "@/lib/finance";
@@ -17,17 +24,16 @@ export function BudgetOverviewCard({
     overview && overview.limitMinor > 0
       ? Math.min((overview.spentMinor / overview.limitMinor) * 100, 100)
       : 0;
+  const planPillThemeStyle = getPlanPillThemeStyle(theme);
+  const daysBadgeThemeStyle = getDaysBadgeThemeStyle(theme);
+  const runwayThemeStyle = getRunwayThemeStyle(theme);
+  const metricThemeStyle = getMetricThemeStyle(theme);
 
   return (
     <View style={styles.section}>
       <View style={styles.header}>
         <View style={styles.copy}>
-          <View
-            style={[
-              styles.planPill,
-              { backgroundColor: theme.colors.primaryFixed },
-            ]}
-          >
+          <View style={[styles.planPill, planPillThemeStyle]}>
             <AppText
               color="onPrimaryFixed"
               style={styles.planPillText}
@@ -43,15 +49,7 @@ export function BudgetOverviewCard({
             left to allocate or spend safely this month
           </AppText>
         </View>
-        <View
-          style={[
-            styles.daysBadge,
-            {
-              backgroundColor: theme.colors.surfaceContainerLowest,
-              borderColor: theme.colors.outlineVariant,
-            },
-          ]}
-        >
+        <View style={[styles.daysBadge, daysBadgeThemeStyle]}>
           <AppText style={styles.daysNumber} variant="titleMd">
             {overview?.daysLeft ?? 0}
           </AppText>
@@ -61,15 +59,7 @@ export function BudgetOverviewCard({
         </View>
       </View>
 
-      <View
-        style={[
-          styles.runway,
-          {
-            backgroundColor: theme.colors.surfaceContainerLow,
-            borderColor: theme.colors.outlineVariant,
-          },
-        ]}
-      >
+      <View style={[styles.runway, runwayThemeStyle]}>
         <View style={styles.runwayTop}>
           <AppText style={styles.runwayTitle} variant="titleMd">
             Spending runway
@@ -92,12 +82,7 @@ export function BudgetOverviewCard({
       </View>
 
       <View style={styles.metrics}>
-        <View
-          style={[
-            styles.metric,
-            { borderColor: theme.colors.outlineVariant },
-          ]}
-        >
+        <View style={[styles.metric, metricThemeStyle]}>
           <AppText color="mutedText" style={styles.metricLabel} variant="labelMd">
             Safe per day
           </AppText>
@@ -105,12 +90,7 @@ export function BudgetOverviewCard({
             {formatMoney(overview?.safePerDayMinor ?? 0, "KES")}
           </AppText>
         </View>
-        <View
-          style={[
-            styles.metric,
-            { borderColor: theme.colors.outlineVariant },
-          ]}
-        >
+        <View style={[styles.metric, metricThemeStyle]}>
           <AppText color="mutedText" style={styles.metricLabel} variant="labelMd">
             Expected buffer
           </AppText>
@@ -121,6 +101,32 @@ export function BudgetOverviewCard({
       </View>
     </View>
   );
+}
+
+function getPlanPillThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primaryFixed,
+  };
+}
+
+function getDaysBadgeThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getRunwayThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getMetricThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 const styles = StyleSheet.create({

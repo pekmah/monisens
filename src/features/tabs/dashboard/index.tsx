@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { AppPressable } from "@/components/base/app-pressable";
@@ -13,6 +13,7 @@ import {
   Radii,
   Sizes,
   Spacing,
+  type AppTheme,
 } from "@/constants/theme";
 import {
   ProgressBar,
@@ -56,6 +57,8 @@ export default function DashboardScreen() {
     budgetedMinor > 0
       ? Math.min((monthSpent / budgetedMinor) * 100, 100)
       : 0;
+  const monthPillThemeStyle = getMonthPillThemeStyle(theme);
+  const fabThemeStyle = getFabThemeStyle(theme);
 
   return (
     <TabScreen>
@@ -84,19 +87,16 @@ export default function DashboardScreen() {
             <View style={styles.periodSelector}>
               {spendingPeriods.map((period) => {
                 const selected = period.value === selectedPeriod;
+                const periodPillThemeStyle = getPeriodPillThemeStyle(
+                  theme,
+                  selected,
+                );
 
                 return (
                   <AppPressable
                     key={period.value}
                     onPress={() => setSelectedPeriod(period.value)}
-                    style={[
-                      styles.periodPill,
-                      {
-                        backgroundColor: selected
-                          ? theme.colors.onPrimary
-                          : "rgba(255,255,255,0.12)",
-                      },
-                    ]}
+                    style={[styles.periodPill, periodPillThemeStyle]}
                   >
                     <AppText
                       color={selected ? "primary" : "onPrimary"}
@@ -155,10 +155,7 @@ export default function DashboardScreen() {
         <View style={styles.bentoGrid}>
           <SurfaceCard style={styles.transactionsCard}>
             <View style={styles.transactionsHeader}>
-              <AppText
-                style={{ fontFamily: font.headerBold }}
-                variant="titleMd"
-              >
+              <AppText style={styles.cardTitle} variant="titleMd">
                 Recent Transactions
               </AppText>
               <Link href="/transactions" asChild>
@@ -189,18 +186,10 @@ export default function DashboardScreen() {
 
           <SurfaceCard style={styles.breakdownCard} tone="low">
             <View style={styles.breakdownHeader}>
-              <AppText
-                style={{ fontFamily: font.headerBold }}
-                variant="titleMd"
-              >
+              <AppText style={styles.cardTitle} variant="titleMd">
                 Spending Breakdown
               </AppText>
-              <View
-                style={[
-                  styles.monthPill,
-                  { backgroundColor: `${theme.colors.primary}1A` },
-                ]}
-              >
+              <View style={[styles.monthPill, monthPillThemeStyle]}>
                 <AppText color="primary" variant="labelMd">
                   This Month
                 </AppText>
@@ -221,19 +210,12 @@ export default function DashboardScreen() {
                     keyExtractor={(item) => item.id}
                     numColumns={2}
                     renderItem={({ item, index }) => (
-                      <View
-                        style={[
-                          styles.legendColumn,
-                          index % 2 === 0
-                            ? styles.legendColumnLeft
-                            : styles.legendColumnRight,
-                        ]}
-                      >
+                      <View style={getLegendColumnStyle(index)}>
                         <View style={styles.legendItem}>
                           <View
                             style={[
                               styles.legendDot,
-                              { backgroundColor: item.color },
+                              getLegendDotStyle(item.color),
                             ]}
                           />
                           <View style={styles.legendCopy}>
@@ -270,9 +252,9 @@ export default function DashboardScreen() {
       </ScrollView>
       <AppPressable
         onPress={() => router.push("/transactions/new")}
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        style={[styles.fab, fabThemeStyle]}
       >
-        <Feather color={theme.colors.onPrimary} name="plus" size={28} />
+        <Feather color={theme.colors.onPrimary} name="plus" size={Sizes["4xl"]} />
       </AppPressable>
     </TabScreen>
   );
@@ -349,6 +331,42 @@ function getPeriodLabel(period: SpendingPeriod) {
   return "today";
 }
 
+function getPeriodPillThemeStyle(
+  theme: AppTheme,
+  selected: boolean,
+): ViewStyle {
+  return {
+    backgroundColor: selected
+      ? theme.colors.onPrimary
+      : "rgba(255,255,255,0.12)",
+  };
+}
+
+function getMonthPillThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: `${theme.colors.primary}1A`,
+  };
+}
+
+function getLegendColumnStyle(index: number): ViewStyle[] {
+  return [
+    styles.legendColumn,
+    index % 2 === 0 ? styles.legendColumnLeft : styles.legendColumnRight,
+  ];
+}
+
+function getLegendDotStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
+}
+
+function getFabThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primary,
+  };
+}
+
 const styles = StyleSheet.create({
   bentoGrid: {
     gap: Spacing.lg,
@@ -370,6 +388,9 @@ const styles = StyleSheet.create({
   content: {
     gap: Spacing.xl,
     paddingBottom: Sizes["15xl"] + Spacing.sm,
+  },
+  cardTitle: {
+    fontFamily: font.headerBold,
   },
   fab: {
     alignItems: "center",

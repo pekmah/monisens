@@ -41,6 +41,7 @@ This Expo app uses a feature-based architecture modeled after `reemio-app`.
 ## Theming
 
 - Use the native React Native styling APIs (`StyleSheet`, inline style arrays, and typed style props). Do not add a UI framework such as NativeWind, Tamagui, Gluestack, or React Native Paper for this project.
+- Do not place inline style objects directly in JSX. Put static styles in `StyleSheet.create`, and assign dynamic theme or prop styles to named variables or helper functions before JSX.
 - Keep theme tokens in `src/constants/theme.ts`. Add colors, spacing, sizes, font sizes, line heights, radii, typography, and elevation there before using new visual values in components.
 - Do not hardcode reusable dimensions such as icon sizes, widths, heights, min heights, font sizes, line heights, or common gaps. Prefer `Sizes`, `FontSizes`, `LineHeights`, `Spacing`, and `Radii` from `@/constants/theme`, or their `theme.*` equivalents from `useAppTheme()`.
 - Source product color tokens from the Stitch `Smart Spend Intelligence` design system unless the user explicitly changes the design direction.
