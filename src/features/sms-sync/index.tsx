@@ -114,7 +114,8 @@ export default function SmsReviewScreen() {
   const handleCategorySelect = useCallback(
     async (candidateId: string, categoryId: string) => {
       // Update the row optimistically so the selected category is visible before
-      // the database write and subsequent page refresh complete.
+      // the database write completes. Reloading the page here remounts the row
+      // while the sheet is dismissing, which can make the modal present again.
       setCandidates((current) =>
         current.map((candidate) =>
           candidate.id === candidateId
@@ -136,9 +137,8 @@ export default function SmsReviewScreen() {
       );
 
       await updateSmsCandidateCategory(candidateId, categoryId);
-      await loadFirstPage();
     },
-    [categoryLabelById, loadFirstPage, updateSmsCandidateCategory],
+    [categoryLabelById, updateSmsCandidateCategory],
   );
 
   const renderCandidate = useCallback(

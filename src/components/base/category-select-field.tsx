@@ -3,7 +3,6 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import {
   forwardRef,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   type ComponentProps,
@@ -110,7 +109,6 @@ export const CategorySelectField = forwardRef<
 ) {
   const theme = useAppTheme();
   const modalRef = useRef<BottomSheetModal>(null);
-  const suppressOpenUntilRef = useRef(0);
   const categoriesQuery = useCategoriesQuery();
   // The field mirrors the list query so it can show the selected label while
   // the sheet body owns the full category rendering.
@@ -148,34 +146,26 @@ export const CategorySelectField = forwardRef<
     [forwardedRef, modalRefProp],
   );
 
-  useEffect(() => {
-    return () => {
-      modalRef.current?.dismiss();
-    };
-  }, []);
-
   const handleOpen = useCallback(() => {
-    // Avoid immediately reopening the sheet after a selection closes it.
-    if (disabled || Date.now() < suppressOpenUntilRef.current) {
-      return;
-    }
-
     modalRef.current?.present();
-  }, [disabled]);
+  }, []);
 
   const handleClose = useCallback(() => {
     modalRef.current?.dismiss();
   }, []);
 
+  const handleDismiss = useCallback(() => {
+    modalRef.current = null;
+  }, []);
+
   const handleSelect = useCallback(
     async (value: string, category: CategoryRecord) => {
-      // Close first so the caller can update navigation or parent state without
-      // competing with the bottom sheet dismissal animation.
-      suppressOpenUntilRef.current = Date.now() + 400;
-      handleClose();
-      await onSelect(value, category);
+      // Dismiss directly here so selection has one close path and the field
+      // remains disabled until the bottom sheet confirms dismissal.
+      modalRef.current?.dismiss();
+      void onSelect(value, category);
     },
-    [handleClose, onSelect],
+    [onSelect],
   );
 
   const selectedAccentColor = selectedCategory
@@ -239,6 +229,7 @@ export const CategorySelectField = forwardRef<
       <AppBottomSheetModal
         ref={setModalRef}
         onClosePress={handleClose}
+        onDismiss={handleDismiss}
         snapPoints={snapPoints}
         subtitle={sheetSubtitle}
         title={title ?? label}
