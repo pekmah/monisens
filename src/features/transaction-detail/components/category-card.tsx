@@ -31,7 +31,7 @@ export function CategoryCard({
           </AppText>
           <AppText color="mutedText" style={styles.subtitle} variant="bodyMd">
             {editing
-              ? "Tap a category to update this transaction."
+              ? "Tap a category to update this transaction, then allocate it to a bill if needed."
               : "Current category for this transaction."}
           </AppText>
         </View>

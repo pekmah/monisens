@@ -10,8 +10,11 @@ import {
 import { sqliteDatabase } from "@/lib/finance/database";
 import type {
   AttachmentRecord,
+  BillAllocationCandidateRecord,
+  BillAllocationSuggestionsRecord,
   BillCadence,
   BillOccurrenceRecord,
+  BillOccurrenceStatus,
   BillsSnapshot,
   BillTransactionMatchRecord,
   BillRecord,
@@ -1686,6 +1689,193 @@ export function listBillTransactionMatches(occurrenceId: string): BillTransactio
     .slice(0, 10);
 }
 
+export function getBillAllocationSuggestionsForTransaction(
+  transactionId: string,
+): BillAllocationSuggestionsRecord {
+  const transaction = getTransactionById(transactionId);
+  if (!transaction) {
+    return { linked: null, matches: [] };
+  }
+
+  const linked = sqliteDatabase.getFirstSync<{
+    amountMinor: number;
+    billId: string;
+    billName: string;
+    categoryColor: string;
+    categoryId: string | null;
+    categoryLabel: string;
+    confidence: number | null;
+    currency: string;
+    dueAt: number;
+    id: string;
+    reason: string | null;
+    status: BillOccurrenceStatus;
+  }>(
+    `SELECT
+      o.id,
+      o.amount_minor AS amountMinor,
+      b.id AS billId,
+      b.name AS billName,
+      COALESCE(c.color, '#4b5563') AS categoryColor,
+      b.category_id AS categoryId,
+      COALESCE(c.label, 'Uncategorized') AS categoryLabel,
+      o.currency,
+      o.due_at AS dueAt,
+      o.match_confidence AS confidence,
+      o.match_reason AS reason,
+      o.status
+     FROM bill_occurrences o
+     INNER JOIN bills b ON b.id = o.bill_id
+     LEFT JOIN categories c ON c.id = b.category_id
+     WHERE o.linked_transaction_id = ?
+     LIMIT 1`,
+    [transactionId],
+  );
+
+  const linkedOccurrence = linked
+    ? mapBillAllocationCandidate(linked)
+    : null;
+
+  if (transaction.direction !== "expense") {
+    return {
+      linked: linkedOccurrence,
+      matches: [],
+    };
+  }
+
+  const windowStart = transaction.transactionAt - 14 * 86_400_000;
+  const windowEnd = transaction.transactionAt + 14 * 86_400_000;
+  const merchantNeedle = normalizeMatchText(transaction.merchant);
+  // The transaction flow needs the inverse of occurrence-driven reconciliation:
+  // start from one expense and find nearby unpaid bill occurrences it could satisfy.
+  const rows = sqliteDatabase.getAllSync<{
+    amountMinor: number;
+    billId: string;
+    billName: string;
+    categoryColor: string;
+    categoryId: string | null;
+    categoryLabel: string;
+    currency: string;
+    dueAt: number;
+    expectedMerchant: string;
+    id: string;
+    merchantPattern: string | null;
+    status: BillOccurrenceStatus;
+  }>(
+    `SELECT
+      o.id,
+      o.amount_minor AS amountMinor,
+      b.id AS billId,
+      b.name AS billName,
+      COALESCE(c.color, '#4b5563') AS categoryColor,
+      b.category_id AS categoryId,
+      COALESCE(c.label, 'Uncategorized') AS categoryLabel,
+      o.currency,
+      o.due_at AS dueAt,
+      b.expected_merchant AS expectedMerchant,
+      b.merchant_pattern AS merchantPattern,
+      o.status
+     FROM bill_occurrences o
+     INNER JOIN bills b ON b.id = o.bill_id
+     LEFT JOIN categories c ON c.id = b.category_id
+     WHERE o.user_id = ?
+       AND o.status = 'due'
+       AND b.deleted_at IS NULL
+       AND b.status = 'active'
+       AND o.linked_transaction_id IS NULL
+       AND o.due_at BETWEEN ? AND ?
+     ORDER BY o.due_at ASC
+     LIMIT 30`,
+    [DEFAULT_USER_ID, windowStart, windowEnd],
+  );
+
+  const matches = rows
+    .map((occurrence) => {
+      let confidence = 0;
+      const reasons: string[] = [];
+      const occurrenceMerchant = normalizeMatchText(
+        occurrence.merchantPattern || occurrence.expectedMerchant,
+      );
+
+      if (
+        merchantNeedle
+        && (merchantNeedle.includes(occurrenceMerchant) || occurrenceMerchant.includes(merchantNeedle))
+      ) {
+        confidence += 40;
+        reasons.push("merchant");
+      }
+
+      const amountDelta = Math.abs(transaction.amountMinor - occurrence.amountMinor);
+      const amountTolerance = Math.max(Math.round(occurrence.amountMinor * 0.05), 100);
+      if (amountDelta === 0) {
+        confidence += 35;
+        reasons.push("exact amount");
+      } else if (amountDelta <= amountTolerance) {
+        confidence += 24;
+        reasons.push("similar amount");
+      }
+
+      if (occurrence.categoryId && transaction.categoryId === occurrence.categoryId) {
+        confidence += 15;
+        reasons.push("category");
+      }
+
+      const distance = Math.abs(daysBetween(transaction.transactionAt, occurrence.dueAt));
+      if (distance <= 1) {
+        confidence += 15;
+        reasons.push("due date");
+      } else if (distance <= 7) {
+        confidence += 8;
+        reasons.push("near due date");
+      }
+
+      return mapBillAllocationCandidate({
+        ...occurrence,
+        confidence: Math.min(confidence, 100),
+        reason: reasons.length ? reasons.join(", ") : "within due window",
+      });
+    })
+    .filter((match) => match.confidence >= 20)
+    .sort((left, right) => right.confidence - left.confidence)
+    .slice(0, 5);
+
+  return {
+    linked: linkedOccurrence,
+    matches,
+  };
+}
+
+function mapBillAllocationCandidate(input: {
+  amountMinor: number;
+  billId: string;
+  billName: string;
+  categoryColor: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  confidence: number | null;
+  currency: string;
+  dueAt: number;
+  id: string;
+  reason: string | null;
+  status: BillOccurrenceStatus;
+}) {
+  return {
+    amount: formatMoney(input.amountMinor, input.currency),
+    amountMinor: input.amountMinor,
+    billId: input.billId,
+    billName: input.billName,
+    categoryColor: input.categoryColor,
+    categoryId: input.categoryId,
+    categoryLabel: input.categoryLabel,
+    confidence: input.confidence ?? 100,
+    currency: input.currency,
+    dueAt: input.dueAt,
+    id: input.id,
+    reason: input.reason ?? "manual allocation",
+    state: mapBillOccurrenceState(input.status, input.dueAt),
+  } satisfies BillAllocationCandidateRecord;
+}
+
 export function createBill(input: CreateBillInput) {
   const amountMinor = toAmountMinor(input.amount);
   if (amountMinor <= 0) {
@@ -1856,6 +2046,21 @@ export function linkBillOccurrenceToTransaction(input: {
   const now = Date.now();
 
   sqliteDatabase.withTransactionSync(() => {
+    // A transaction can satisfy only one bill occurrence at a time, so
+    // reassigning it should clear any previous link before the new one is saved.
+    sqliteDatabase.runSync(
+      `UPDATE bill_occurrences
+       SET status = 'due',
+           linked_transaction_id = NULL,
+           paid_at = NULL,
+           match_confidence = NULL,
+           match_reason = NULL,
+           updated_at = ?
+       WHERE linked_transaction_id = ?
+         AND id != ?`,
+      [now, input.transactionId, input.occurrenceId],
+    );
+
     sqliteDatabase.runSync(
       `UPDATE bill_occurrences
        SET status = 'paid',

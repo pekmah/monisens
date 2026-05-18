@@ -1,3 +1,4 @@
+export { BillAllocationCard } from "./bill-allocation-card";
 export { CategoryCard } from "./category-card";
 export { DetailHeader } from "./detail-header";
 export { MetaRowsCard } from "./meta-rows-card";

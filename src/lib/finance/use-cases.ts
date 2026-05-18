@@ -27,6 +27,7 @@ import {
   createCategory,
   duplicateSmsSourceProfile,
   generateUpcomingBillOccurrences,
+  getBillAllocationSuggestionsForTransaction,
   getSmsCandidateFeedbackContext,
   createBudget,
   createTransaction,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/finance/repository";
 import type {
   AiSnapshot,
+  BillAllocationSuggestionsRecord,
   CreateBillInput,
   CreateTransactionInput,
   FinanceSnapshot,
@@ -127,6 +129,12 @@ export function loadBillByIdUseCase(id: string) {
 
 export function loadBillTransactionMatchesUseCase(occurrenceId: string) {
   return listBillTransactionMatches(occurrenceId);
+}
+
+export function loadBillAllocationSuggestionsUseCase(
+  transactionId: string,
+): BillAllocationSuggestionsRecord {
+  return getBillAllocationSuggestionsForTransaction(transactionId);
 }
 
 export function linkBillOccurrenceToTransactionUseCase(input: {

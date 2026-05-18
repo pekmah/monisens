@@ -6,6 +6,7 @@ import { AppButton, AppSafeArea, AppText, ConfirmationDialog } from "@/component
 import { Sizes, Spacing } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
+  BillAllocationCard,
   CategoryCard,
   DetailHeader,
   MetaRowsCard,
@@ -13,15 +14,33 @@ import {
   TransactionHeroCard,
   type MetaRow,
 } from "@/features/transaction-detail/components";
-import { formatTransactionMetaDate, useFinance } from "@/lib/finance";
+import {
+  formatTransactionMetaDate,
+  type BillAllocationCandidateRecord,
+  useFinance,
+} from "@/lib/finance";
 
 export default function TransactionDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const { deleteTransaction, loadTransactionById, snapshot, updateTransaction } = useFinance();
+  const {
+    deleteTransaction,
+    linkBillOccurrenceToTransaction,
+    loadBillAllocationSuggestions,
+    loadTransactionById,
+    snapshot,
+    unlinkBillOccurrencePayment,
+    updateTransaction,
+  } = useFinance();
   const snapshotTransaction = snapshot?.transactions.find((item) => item.id === params.id);
   const [transaction, setTransaction] = useState(snapshotTransaction ?? null);
   const [editingCategory, setEditingCategory] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [billAllocationBusyId, setBillAllocationBusyId] = useState<string | null>(null);
+  const [billAllocationLoading, setBillAllocationLoading] = useState(false);
+  const [billAllocationMatches, setBillAllocationMatches] = useState<
+    BillAllocationCandidateRecord[]
+  >([]);
+  const [linkedBillOccurrence, setLinkedBillOccurrence] = useState<BillAllocationCandidateRecord | null>(null);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
 
   useEffect(() => {
@@ -52,6 +71,40 @@ export default function TransactionDetailScreen() {
     };
   }, [loadTransactionById, params.id, snapshotTransaction]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!transaction) {
+      setBillAllocationMatches([]);
+      setLinkedBillOccurrence(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // Allocation suggestions depend on the saved transaction state because the
+    // bill matcher uses the persisted category, merchant, amount, and date.
+    setBillAllocationLoading(true);
+    void loadBillAllocationSuggestions(transaction.id)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLinkedBillOccurrence(result.linked);
+        setBillAllocationMatches(result.matches);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBillAllocationLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadBillAllocationSuggestions, transaction]);
+
   if (!transaction) {
     return (
       <TabScreen>
@@ -79,7 +132,6 @@ export default function TransactionDetailScreen() {
 
   async function handleCategoryChange(categoryId: string) {
     if (categoryId === currentTransaction.categoryId) {
-      setEditingCategory(false);
       return;
     }
 
@@ -92,9 +144,38 @@ export default function TransactionDetailScreen() {
           }
         : current,
     );
-    await updateTransaction(currentTransaction.id, { categoryId });
-    setBusy(false);
-    setEditingCategory(false);
+    try {
+      await updateTransaction(currentTransaction.id, { categoryId });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAllocateToBill(occurrenceId: string) {
+    setBillAllocationBusyId(occurrenceId);
+    try {
+      await linkBillOccurrenceToTransaction({
+        occurrenceId,
+        transactionId: currentTransaction.id,
+      });
+      setLinkedBillOccurrence(null);
+      setBillAllocationMatches([]);
+      setTransaction(await loadTransactionById(currentTransaction.id));
+    } finally {
+      setBillAllocationBusyId(null);
+    }
+  }
+
+  async function handleUnlinkBill(occurrenceId: string) {
+    setBillAllocationBusyId(occurrenceId);
+    try {
+      await unlinkBillOccurrencePayment(occurrenceId);
+      setLinkedBillOccurrence(null);
+      setBillAllocationMatches([]);
+      setTransaction(await loadTransactionById(currentTransaction.id));
+    } finally {
+      setBillAllocationBusyId(null);
+    }
   }
 
   async function handleDelete() {
@@ -121,6 +202,16 @@ export default function TransactionDetailScreen() {
             onEditToggle={() => setEditingCategory((value) => !value)}
             onSelectCategory={(categoryId) => void handleCategoryChange(categoryId)}
           />
+          {(editingCategory || linkedBillOccurrence || billAllocationMatches.length) && (
+            <BillAllocationCard
+              busyOccurrenceId={billAllocationBusyId}
+              linkedOccurrence={linkedBillOccurrence}
+              loading={billAllocationLoading}
+              matches={billAllocationMatches}
+              onAllocate={(occurrenceId) => void handleAllocateToBill(occurrenceId)}
+              onUnlink={(occurrenceId) => void handleUnlinkBill(occurrenceId)}
+            />
+          )}
           <SuggestionCard />
           <View style={styles.actions}>
             <AppButton

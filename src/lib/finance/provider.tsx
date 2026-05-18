@@ -14,6 +14,7 @@ import { AppState } from "react-native";
 import { subscribeToAiQueueUpdates } from "@/lib/ai/events";
 import { financeQueryKeys } from "@/lib/finance/queries";
 import type {
+  BillAllocationSuggestionsRecord,
   BillRecord,
   BillTransactionMatchRecord,
   CreateBillInput,
@@ -48,6 +49,7 @@ import {
   handleIncomingSmsUseCase,
   importSmsInboxUseCase,
   linkBillOccurrenceToTransactionUseCase,
+  loadBillAllocationSuggestionsUseCase,
   loadBillByIdUseCase,
   loadBillTransactionMatchesUseCase,
   loadFinanceSnapshot,
@@ -118,6 +120,9 @@ const FinanceContext = createContext<{
     occurrenceId: string;
     transactionId: string;
   }) => Promise<void>;
+  loadBillAllocationSuggestions: (
+    transactionId: string,
+  ) => Promise<BillAllocationSuggestionsRecord>;
   loadBillById: (id: string) => Promise<BillRecord | null>;
   loadBillTransactionMatches: (
     occurrenceId: string,
@@ -294,6 +299,12 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   const loadBillTransactionMatches = useCallback(
     async (occurrenceId: string) =>
       loadBillTransactionMatchesUseCase(occurrenceId),
+    [],
+  );
+
+  const loadBillAllocationSuggestions = useCallback(
+    async (transactionId: string) =>
+      loadBillAllocationSuggestionsUseCase(transactionId),
     [],
   );
 
@@ -738,6 +749,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       error,
       importSmsInbox,
       linkBillOccurrenceToTransaction: linkLocalBillOccurrence,
+      loadBillAllocationSuggestions,
       loadBillById,
       loadBillTransactionMatches,
       loadIgnoredSmsMessages,
@@ -781,6 +793,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       error,
       importSmsInbox,
       linkLocalBillOccurrence,
+      loadBillAllocationSuggestions,
       loadBillById,
       loadBillTransactionMatches,
       loadIgnoredSmsMessages,

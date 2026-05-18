@@ -373,6 +373,27 @@ export type BillTransactionMatchRecord = {
   transactionAt: number;
 };
 
+export type BillAllocationCandidateRecord = {
+  amount: string;
+  amountMinor: number;
+  billId: string;
+  billName: string;
+  categoryColor: string;
+  categoryId: string | null;
+  categoryLabel: string;
+  confidence: number;
+  currency: string;
+  dueAt: number;
+  id: string;
+  reason: string;
+  state: BillOccurrenceRecord["state"];
+};
+
+export type BillAllocationSuggestionsRecord = {
+  linked: BillAllocationCandidateRecord | null;
+  matches: BillAllocationCandidateRecord[];
+};
+
 export type BillsSnapshot = {
   dueSoonCount: number;
   monthlyImpactMinor: number;
