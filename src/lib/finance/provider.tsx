@@ -503,7 +503,16 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       await refresh();
 
       if (onlineRef.current) {
-        await runAiJobQueueUseCase();
+        // AI feedback sync should improve future classifications, but it must not
+        // block the local accept flow after the transaction has already been saved.
+        void runAiJobQueueUseCase()
+          .then(() => refresh())
+          .catch((queueError) => {
+            console.warn(
+              "[MonisensAI] feedback sync failed after accepting SMS candidate",
+              queueError,
+            );
+          });
       }
       return transactionId;
     },

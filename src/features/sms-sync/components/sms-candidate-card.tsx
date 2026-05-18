@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { useCallback, useState } from "react";
+import { Alert, StyleSheet, View } from "react-native";
 
 import { AppButton, AppText, CategorySelectField } from "@/components/base";
 import { font } from "@/constants/fonts";
@@ -25,6 +25,7 @@ export function SmsCandidateCard({
   onDismissCandidate: (id: string) => Promise<void>;
 }) {
   const theme = useAppTheme();
+  const [isAccepting, setIsAccepting] = useState(false);
   // Prefer the current category table label over the stale label stored on the
   // parsed candidate, because users can rename categories while SMS remain pending.
   const resolvedCategoryLabel =
@@ -51,11 +52,28 @@ export function SmsCandidateCard({
   }, [candidate.id, onDismissCandidate]);
 
   const handleAccept = useCallback(async () => {
-    // Accepting creates a real transaction, so take the user directly to the
-    // transaction detail screen once the review candidate is converted.
-    const transactionId = await onAcceptCandidate(candidate.id);
-    router.replace(`/transactions/${transactionId}`);
-  }, [candidate.id, onAcceptCandidate]);
+    if (isAccepting) {
+      return;
+    }
+
+    setIsAccepting(true);
+    try {
+      // Accepting creates a real transaction, so take the user directly to the
+      // transaction detail screen once the review candidate is converted.
+      const transactionId = await onAcceptCandidate(candidate.id);
+      router.replace(`/transactions/${transactionId}`);
+    } catch (acceptError) {
+      console.warn("[MonisensSMS] failed to accept SMS candidate", acceptError);
+      Alert.alert(
+        "Could not accept SMS",
+        acceptError instanceof Error
+          ? acceptError.message
+          : "Please try accepting this transaction again.",
+      );
+    } finally {
+      setIsAccepting(false);
+    }
+  }, [candidate.id, isAccepting, onAcceptCandidate]);
 
   return (
     <View
@@ -169,7 +187,8 @@ export function SmsCandidateCard({
           variant="secondary"
         />
         <AppButton
-          disabled={!candidate.categoryId}
+          disabled={!candidate.categoryId || isAccepting}
+          loading={isAccepting}
           onPress={() => void handleAccept()}
           title="Accept"
         />
