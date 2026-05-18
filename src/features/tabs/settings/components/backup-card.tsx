@@ -18,6 +18,9 @@ import type {
   FinanceBackupPayload,
   FinanceBackupSummary,
 } from "@/lib/finance/backup-schema";
+import { useFinance } from "@/lib/finance/provider";
+import { financeQueryKeys } from "@/lib/finance/queries";
+import { appQueryClient } from "@/lib/query-client";
 
 type BackupTask = "bills-csv" | "export" | "restore" | null;
 
@@ -43,6 +46,7 @@ function formatCount(value: number) {
 
 export function BackupCard() {
   const theme = useAppTheme();
+  const { refresh } = useFinance();
   const [activeTask, setActiveTask] = useState<BackupTask>(null);
   const [lastBackup, setLastBackup] = useState<FinanceBackupSummary | null>(null);
   const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
@@ -131,28 +135,56 @@ export function BackupCard() {
         { style: "cancel", text: "Cancel" },
         {
           onPress: () => {
-            try {
-              const summary = restoreFinanceBackup(pendingRestore.payload);
-              setLastBackup(summary);
-              setPendingRestore(null);
-              Alert.alert(
-                "Restore complete",
-                `${formatCount(summary.totalRows)} records were restored.`,
-              );
-            } catch (error) {
-              Alert.alert(
-                "Restore failed",
-                error instanceof Error
-                  ? error.message
-                  : "The backup could not be restored.",
-              );
-            }
+            void handleConfirmRestore();
           },
           style: "destructive",
           text: "Replace",
         },
       ],
     );
+  }
+
+  async function handleConfirmRestore() {
+    if (!pendingRestore || isBusy) {
+      return;
+    }
+
+    setActiveTask("restore");
+
+    try {
+      const summary = restoreFinanceBackup(pendingRestore.payload);
+
+      setLastBackup(summary);
+      setPendingRestore(null);
+
+      // Restoring replaces SQLite tables underneath the mounted screens, so
+      // refresh finance context and cached category queries before showing done.
+      try {
+        await appQueryClient.invalidateQueries({
+          queryKey: financeQueryKeys.categories(),
+        });
+        await refresh();
+      } catch (refreshError) {
+        console.warn(
+          "Backup restore completed, but the finance view refresh failed.",
+          refreshError,
+        );
+      }
+
+      Alert.alert(
+        "Restore complete",
+        `${formatCount(summary.totalRows)} records were restored.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Restore failed",
+        error instanceof Error
+          ? error.message
+          : "The backup could not be restored.",
+      );
+    } finally {
+      setActiveTask(null);
+    }
   }
 
   return (

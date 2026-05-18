@@ -4,10 +4,10 @@ export type {
   TransactionListItemProps,
 } from "./transaction-list-item";
 
-export { TransactionSection } from "./transaction-section";
-export type {
-  TransactionSectionData,
-  TransactionSectionProps,
-} from "./transaction-section";
+export { TransactionList } from "./transaction-list";
+export type { TransactionListProps } from "./transaction-list";
+
+export { TransactionSectionHeader } from "./transaction-section-header";
+export type { TransactionSectionHeaderProps } from "./transaction-section-header";
 
 export { TransactionsToolbar } from "./transactions-toolbar";

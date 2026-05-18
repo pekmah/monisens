@@ -46,6 +46,10 @@ This Expo app uses a feature-based architecture modeled after `reemio-app`.
 - Do not declare a React component inside the body of another component. Define child components at module scope or move them into a separate file. Nested component declarations are recreated on every parent render, which can cause unnecessary work and UI state loss.
 - Feature-specific components must live in that feature's `src/features/<feature-name>/components` folder. Keep `src/features/<feature-name>/index.tsx` focused on screen orchestration and move screen sections, list rows, empty/loading states, and other JSX-heavy pieces into feature-local component files.
 
+## Forms and Keyboard Handling
+
+- All scrollable screens that contain inputs must handle the keyboard deliberately. Use the appropriate React Native keyboard-aware layout primitives, `keyboardShouldPersistTaps`, safe-area-aware padding, and content insets so focused inputs and primary actions remain reachable on iOS and Android.
+
 ## Comments
 
 - Add comments while coding to explain what is happening in the codebase, especially around state transitions, data loading, optimistic updates, derived values, and non-obvious UI behavior. Keep comments useful and concise: explain intent and context, not what an obvious line of code already says.

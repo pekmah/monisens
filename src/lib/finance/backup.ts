@@ -36,6 +36,46 @@ const RESTORE_DELETE_ORDER: FinanceBackupTable[] = [
   "categories",
   "ignored_sms_messages",
 ];
+const BACKUP_LOG_TAG = "[MonisensBackup]";
+
+type BackupLogDetails = Record<string, boolean | number | string | null | undefined>;
+
+function getDurationMs(startedAt: number) {
+  return Date.now() - startedAt;
+}
+
+function getUriScheme(uri: string) {
+  return uri.split(":", 1)[0] || "unknown";
+}
+
+function getErrorDetails(error: unknown): BackupLogDetails {
+  if (error instanceof Error) {
+    return {
+      errorMessage: error.message,
+      errorName: error.name,
+    };
+  }
+
+  return {
+    errorMessage: String(error),
+    errorName: "UnknownError",
+  };
+}
+
+function logBackupDebug(message: string, details?: BackupLogDetails) {
+  console.info(BACKUP_LOG_TAG, message, details ?? {});
+}
+
+function logBackupError(
+  message: string,
+  error: unknown,
+  details?: BackupLogDetails,
+) {
+  console.error(BACKUP_LOG_TAG, message, {
+    ...details,
+    ...getErrorDetails(error),
+  });
+}
 
 function quoteIdentifier(identifier: string) {
   return `"${identifier.replaceAll('"', '""')}"`;
@@ -110,7 +150,9 @@ async function ensureBackupDirectory() {
 }
 
 async function readJsonFile(uri: string) {
-  return JSON.parse(new File(uri).textSync());
+  // DocumentPicker copies selected files into cache; read asynchronously so a
+  // large backup cannot block the UI thread while the restore preview loads.
+  return JSON.parse(await new File(uri).text());
 }
 
 function insertRows(table: FinanceBackupTable, rows: Record<string, unknown>[]) {
@@ -244,6 +286,20 @@ function buildBillsCsv() {
 }
 
 function restorePayload(payload: FinanceBackupPayload) {
+  const tableCounts = FINANCE_BACKUP_TABLES.reduce(
+    (counts, table) => {
+      counts[table] = payload.tables[table].length;
+      return counts;
+    },
+    {} as Record<FinanceBackupTable, number>,
+  );
+
+  logBackupDebug("restore-sqlite-transaction-start", {
+    createdAt: payload.createdAt,
+    formatVersion: payload.formatVersion,
+    totalRows: Object.values(tableCounts).reduce((total, count) => total + count, 0),
+  });
+
   sqliteDatabase.withTransactionSync(() => {
     for (const table of RESTORE_DELETE_ORDER) {
       try {
@@ -254,7 +310,15 @@ function restorePayload(payload: FinanceBackupPayload) {
     }
 
     for (const table of FINANCE_BACKUP_TABLES) {
+      logBackupDebug("restore-table-insert-start", {
+        rowCount: tableCounts[table],
+        table,
+      });
       insertRows(table, payload.tables[table]);
+      logBackupDebug("restore-table-insert-complete", {
+        rowCount: tableCounts[table],
+        table,
+      });
     }
 
     try {
@@ -263,6 +327,11 @@ function restorePayload(payload: FinanceBackupPayload) {
     } catch {
       // Derived summary tables are rebuilt by normal app flows when present.
     }
+  });
+
+  logBackupDebug("restore-sqlite-transaction-complete", {
+    createdAt: payload.createdAt,
+    totalRows: Object.values(tableCounts).reduce((total, count) => total + count, 0),
   });
 }
 
@@ -314,32 +383,112 @@ export async function pickFinanceBackupForRestore(): Promise<{
   payload: FinanceBackupPayload;
   summary: FinanceBackupSummary;
 } | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    copyToCacheDirectory: true,
-    multiple: false,
-    type: ["application/json", "application/octet-stream", "*/*"],
-  });
+  const startedAt = Date.now();
 
-  if (result.canceled) {
-    return null;
+  logBackupDebug("restore-import-picker-opened");
+
+  try {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ["application/json", "application/octet-stream", "*/*"],
+    });
+
+    if (result.canceled) {
+      logBackupDebug("restore-import-picker-canceled", {
+        durationMs: getDurationMs(startedAt),
+      });
+      return null;
+    }
+
+    const asset = result.assets[0];
+
+    if (!asset) {
+      throw new Error("No backup file was returned by the document picker.");
+    }
+
+    logBackupDebug("restore-import-file-selected", {
+      fileName: asset.name,
+      fileSize: asset.size,
+      mimeType: asset.mimeType,
+      uriScheme: getUriScheme(asset.uri),
+    });
+
+    const readStartedAt = Date.now();
+    const encryptedBackup = await readJsonFile(asset.uri);
+
+    logBackupDebug("restore-import-file-read-complete", {
+      durationMs: getDurationMs(readStartedAt),
+      fileName: asset.name,
+    });
+
+    assertEncryptedFinanceBackup(encryptedBackup);
+    logBackupDebug("restore-import-envelope-valid", {
+      createdAt: encryptedBackup.createdAt,
+      formatVersion: encryptedBackup.formatVersion,
+      keyVersion: encryptedBackup.keyVersion,
+    });
+
+    const decryptStartedAt = Date.now();
+
+    logBackupDebug("restore-import-decrypt-start", {
+      fileName: asset.name,
+    });
+
+    const decryptedPayload = await decryptFinanceBackupPayload(encryptedBackup);
+
+    logBackupDebug("restore-import-decrypt-complete", {
+      durationMs: getDurationMs(decryptStartedAt),
+      fileName: asset.name,
+    });
+
+    assertFinanceBackupPayload(decryptedPayload);
+
+    const summary = summarizeFinanceBackup(decryptedPayload, asset.name);
+
+    logBackupDebug("restore-import-payload-valid", {
+      createdAt: summary.createdAt,
+      durationMs: getDurationMs(startedAt),
+      fileName: summary.fileName,
+      totalRows: summary.totalRows,
+    });
+
+    return {
+      payload: decryptedPayload,
+      summary,
+    };
+  } catch (error) {
+    logBackupError("restore-import-failed", error, {
+      durationMs: getDurationMs(startedAt),
+    });
+    throw error;
   }
-
-  const asset = result.assets[0];
-  const encryptedBackup = await readJsonFile(asset.uri);
-
-  assertEncryptedFinanceBackup(encryptedBackup);
-
-  const decryptedPayload = await decryptFinanceBackupPayload(encryptedBackup);
-  assertFinanceBackupPayload(decryptedPayload);
-
-  return {
-    payload: decryptedPayload,
-    summary: summarizeFinanceBackup(decryptedPayload, asset.name),
-  };
 }
 
 export function restoreFinanceBackup(payload: FinanceBackupPayload) {
+  const startedAt = Date.now();
+
+  logBackupDebug("restore-confirm-start", {
+    createdAt: payload.createdAt,
+    formatVersion: payload.formatVersion,
+  });
+
   assertFinanceBackupPayload(payload);
-  restorePayload(payload);
-  return summarizeFinanceBackup(payload);
+
+  try {
+    restorePayload(payload);
+    const summary = summarizeFinanceBackup(payload);
+
+    logBackupDebug("restore-confirm-complete", {
+      durationMs: getDurationMs(startedAt),
+      totalRows: summary.totalRows,
+    });
+
+    return summary;
+  } catch (error) {
+    logBackupError("restore-confirm-failed", error, {
+      durationMs: getDurationMs(startedAt),
+    });
+    throw error;
+  }
 }
