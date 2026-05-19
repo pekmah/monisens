@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
 import {
   KeyboardAwareScrollView,
   type KeyboardAwareScrollViewProps,
@@ -28,17 +28,24 @@ export function KeyboardController({
   ...props
 }: KeyboardControllerProps) {
   const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, 'background');
+  const containerThemeStyle = getContainerThemeStyle(backgroundColor);
 
   return (
     <KeyboardAwareScrollView
       bottomOffset={bottomOffset}
       contentContainerStyle={[styles.content, contentContainerStyle]}
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-      style={[styles.container, { backgroundColor }, style]}
+      style={[styles.container, containerThemeStyle, style]}
       {...props}>
       {children}
     </KeyboardAwareScrollView>
   );
+}
+
+function getContainerThemeStyle(backgroundColor: string): ViewStyle {
+  return {
+    backgroundColor,
+  };
 }
 
 const styles = StyleSheet.create({

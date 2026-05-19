@@ -1,5 +1,6 @@
-import { ScrollView, StyleSheet, View, type ScrollViewProps, type ViewProps } from 'react-native';
+import { StyleSheet, View, type ScrollViewProps, type ViewProps, type ViewStyle } from 'react-native';
 
+import { KeyboardController } from '@/components/base/keyboard-controller';
 import { AppSafeArea, type AppSafeAreaProps } from '@/components/base/safe-area';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -21,26 +22,33 @@ export function Screen({
   ...props
 }: ScreenProps) {
   const theme = useAppTheme();
+  const paddedThemeStyle = getPaddedThemeStyle(theme.spacing.lg);
   const contentStyle = [
     styles.content,
-    padded ? { padding: theme.spacing.lg } : undefined,
+    padded ? paddedThemeStyle : undefined,
     contentContainerStyle,
   ];
 
   return (
     <AppSafeArea {...props}>
       {scroll ? (
-        <ScrollView
+        <KeyboardController
           contentContainerStyle={contentStyle}
           keyboardShouldPersistTaps={keyboardShouldPersistTaps}
           style={[styles.container, style]}>
           {children}
-        </ScrollView>
+        </KeyboardController>
       ) : (
         <View style={[contentStyle, style]}>{children}</View>
       )}
     </AppSafeArea>
   );
+}
+
+function getPaddedThemeStyle(padding: number): ViewStyle {
+  return {
+    padding,
+  };
 }
 
 const styles = StyleSheet.create({

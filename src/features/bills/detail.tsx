@@ -1,11 +1,25 @@
 import { Feather } from "@expo/vector-icons";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { AppButton, AppPressable, AppText, NestedScreenHeader, Screen } from "@/components/base";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import {
   formatMoney,
@@ -33,6 +47,11 @@ export default function BillDetailScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const occurrences = (snapshot?.bills.occurrences ?? [])
     .filter((occurrence) => occurrence.billId === id);
+  const heroThemeStyle = getHeroThemeStyle(theme);
+  const confirmButtonThemeStyle = getConfirmButtonThemeStyle(theme);
+  const billIconThemeStyle = bill
+    ? getBillIconThemeStyle(bill.categoryColor)
+    : undefined;
 
   const reload = useCallback(async () => {
     await refresh();
@@ -129,11 +148,11 @@ export default function BillDetailScreen() {
             <View
               style={[
                 styles.hero,
-                { backgroundColor: theme.colors.surfaceContainerLowest },
+                heroThemeStyle,
               ]}
             >
               <View style={styles.heroHeader}>
-                <View style={[styles.iconTile, { backgroundColor: `${bill.categoryColor}20` }]}>
+                <View style={[styles.iconTile, billIconThemeStyle]}>
                   <Feather color={bill.categoryColor} name="calendar" size={20} />
                 </View>
                 <View style={styles.heroCopy}>
@@ -167,94 +186,95 @@ export default function BillDetailScreen() {
               Payment reconciliation
             </AppText>
             {occurrences.length ? (
-              occurrences.map((occurrence) => (
-                <View
-                  key={occurrence.id}
-                  style={[
-                    styles.occurrence,
-                    {
-                      backgroundColor: theme.colors.surfaceContainerLowest,
-                      borderColor:
-                        occurrence.state === "overdue"
-                          ? theme.colors.error
-                          : theme.colors.outlineVariant,
-                    },
-                  ]}
-                >
-                  <View style={styles.occurrenceHeader}>
-                    <View style={styles.occurrenceCopy}>
-                      <AppText style={styles.occurrenceTitle} variant="labelMd">
-                        {formatBillDate(occurrence.dueAt)}
-                      </AppText>
-                      <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
-                        {occurrence.state.replace("_", " ")}
-                      </AppText>
-                    </View>
-                    <AppText style={styles.amount} variant="labelMd">
-                      {formatMoney(occurrence.amountMinor, occurrence.currency)}
-                    </AppText>
-                  </View>
+              occurrences.map((occurrence) => {
+                const occurrenceThemeStyle = getOccurrenceThemeStyle(
+                  theme,
+                  occurrence.state,
+                );
 
-                  {occurrence.state === "paid" ? (
-                    <View style={styles.linkedPayment}>
+                return (
+                  <View
+                    key={occurrence.id}
+                    style={[
+                      styles.occurrence,
+                      occurrenceThemeStyle,
+                    ]}
+                  >
+                    <View style={styles.occurrenceHeader}>
                       <View style={styles.occurrenceCopy}>
-                        <AppText color="primary" style={styles.occurrenceMeta} variant="bodyMd">
-                          Linked to {occurrence.linkedTransactionMerchant ?? "transaction"}
+                        <AppText style={styles.occurrenceTitle} variant="labelMd">
+                          {formatBillDate(occurrence.dueAt)}
                         </AppText>
                         <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
-                          {occurrence.paidAt ? formatBillDate(occurrence.paidAt) : "Paid"}
+                          {occurrence.state.replace("_", " ")}
                         </AppText>
                       </View>
-                      <AppPressable
-                        onPress={() => void handleUnlink(occurrence.id)}
-                        style={styles.textButton}
-                      >
-                        {busyId === occurrence.id ? (
-                          <ActivityIndicator color={theme.colors.primary} size="small" />
-                        ) : (
-                          <AppText color="primary" style={styles.textButtonLabel} variant="labelMd">
-                            Unlink
+                      <AppText style={styles.amount} variant="labelMd">
+                        {formatMoney(occurrence.amountMinor, occurrence.currency)}
+                      </AppText>
+                    </View>
+
+                    {occurrence.state === "paid" ? (
+                      <View style={styles.linkedPayment}>
+                        <View style={styles.occurrenceCopy}>
+                          <AppText color="primary" style={styles.occurrenceMeta} variant="bodyMd">
+                            Linked to {occurrence.linkedTransactionMerchant ?? "transaction"}
                           </AppText>
-                        )}
-                      </AppPressable>
-                    </View>
-                  ) : matches[occurrence.id]?.length ? (
-                    <View style={styles.matches}>
-                      {matches[occurrence.id].map((match) => (
-                        <View key={match.id} style={styles.matchRow}>
-                          <View style={styles.occurrenceCopy}>
-                            <AppText style={styles.matchTitle} variant="labelMd">
-                              {match.merchant}
-                            </AppText>
-                            <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
-                              {match.meta} · {match.reason} · {match.confidence}%
-                            </AppText>
-                          </View>
-                          <AppPressable
-                            onPress={() => void handleConfirm(occurrence.id, match.id)}
-                            style={[
-                              styles.confirmButton,
-                              { backgroundColor: theme.colors.primary },
-                            ]}
-                          >
-                            {busyId === occurrence.id ? (
-                              <ActivityIndicator color={theme.colors.onPrimary} size="small" />
-                            ) : (
-                              <AppText color="onPrimary" style={styles.confirmText} variant="labelMd">
-                                Link
-                              </AppText>
-                            )}
-                          </AppPressable>
+                          <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
+                            {occurrence.paidAt ? formatBillDate(occurrence.paidAt) : "Paid"}
+                          </AppText>
                         </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
-                      No matching expense transaction found in the due window.
-                    </AppText>
-                  )}
-                </View>
-              ))
+                        <AppPressable
+                          onPress={() => void handleUnlink(occurrence.id)}
+                          style={styles.textButton}
+                        >
+                          {busyId === occurrence.id ? (
+                            <ActivityIndicator color={theme.colors.primary} size="small" />
+                          ) : (
+                            <AppText color="primary" style={styles.textButtonLabel} variant="labelMd">
+                              Unlink
+                            </AppText>
+                          )}
+                        </AppPressable>
+                      </View>
+                    ) : matches[occurrence.id]?.length ? (
+                      <View style={styles.matches}>
+                        {matches[occurrence.id].map((match) => (
+                          <View key={match.id} style={styles.matchRow}>
+                            <View style={styles.occurrenceCopy}>
+                              <AppText style={styles.matchTitle} variant="labelMd">
+                                {match.merchant}
+                              </AppText>
+                              <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
+                                {match.meta} · {match.reason} · {match.confidence}%
+                              </AppText>
+                            </View>
+                            <AppPressable
+                              onPress={() => void handleConfirm(occurrence.id, match.id)}
+                              style={[
+                                styles.confirmButton,
+                                confirmButtonThemeStyle,
+                              ]}
+                            >
+                              {busyId === occurrence.id ? (
+                                <ActivityIndicator color={theme.colors.onPrimary} size="small" />
+                              ) : (
+                                <AppText color="onPrimary" style={styles.confirmText} variant="labelMd">
+                                  Link
+                                </AppText>
+                              )}
+                            </AppPressable>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <AppText color="mutedText" style={styles.occurrenceMeta} variant="bodyMd">
+                        No matching expense transaction found in the due window.
+                      </AppText>
+                    )}
+                  </View>
+                );
+              })
             ) : (
               <AppText color="mutedText" variant="bodyMd">
                 Future occurrences will appear after the schedule is generated.
@@ -278,6 +298,34 @@ function Meta({ label, value }: { label: string; value: string }) {
       </AppText>
     </View>
   );
+}
+
+function getHeroThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+  };
+}
+
+function getBillIconThemeStyle(categoryColor: string): ViewStyle {
+  return {
+    backgroundColor: `${categoryColor}20`,
+  };
+}
+
+function getOccurrenceThemeStyle(
+  theme: AppTheme,
+  state: "due_soon" | "overdue" | "paid" | "upcoming",
+): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: state === "overdue" ? theme.colors.error : theme.colors.outlineVariant,
+  };
+}
+
+function getConfirmButtonThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.primary,
+  };
 }
 
 const styles = StyleSheet.create({

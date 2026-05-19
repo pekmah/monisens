@@ -1,9 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View, type ViewStyle } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
-import { AppButton, AppText, AppTextInput, CategorySelectField } from "@/components/base";
+import {
+  AppButton,
+  AppText,
+  AppTextInput,
+  CategorySelectField,
+  KeyboardController,
+} from "@/components/base";
 import { Radii, Sizes, Spacing, type AppTheme } from "@/constants/theme";
 import { TabScreen } from "@/features/tabs/_components";
 import {
@@ -42,7 +48,10 @@ export default function BudgetingScreen() {
 
   return (
     <TabScreen>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardController
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <BudgetOverviewCard overview={snapshot?.budgetOverview ?? null} />
         <BillsPlanningCard
           dueSoonCount={snapshot?.bills.dueSoonCount ?? 0}
@@ -96,7 +105,7 @@ export default function BudgetingScreen() {
           categories={snapshot?.budgetAllocations ?? []}
           onAddBudget={() => setCreating(true)}
         />
-      </ScrollView>
+      </KeyboardController>
     </TabScreen>
   );
 }

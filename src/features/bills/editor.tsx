@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import {
   AppButton,
@@ -12,7 +12,14 @@ import {
   OptionSelectField,
 } from "@/components/base";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import {
   formatMoney,
@@ -62,6 +69,8 @@ export default function BillEditorScreen() {
   const [error, setError] = useState<string | null>(null);
   const billId = params.id;
   const isEditing = Boolean(billId);
+  const cardThemeStyle = getCardThemeStyle(theme);
+  const previewThemeStyle = getPreviewThemeStyle(theme);
 
   useEffect(() => {
     if (!billId) {
@@ -183,7 +192,7 @@ export default function BillEditorScreen() {
         <View
           style={[
             styles.card,
-            { backgroundColor: theme.colors.surfaceContainerLowest },
+            cardThemeStyle,
           ]}
         >
           <AppText style={styles.sectionTitle} variant="titleMd">
@@ -234,7 +243,7 @@ export default function BillEditorScreen() {
         <View
           style={[
             styles.card,
-            { backgroundColor: theme.colors.surfaceContainerLowest },
+            cardThemeStyle,
           ]}
         >
           <AppText style={styles.sectionTitle} variant="titleMd">
@@ -275,7 +284,7 @@ export default function BillEditorScreen() {
         <View
           style={[
             styles.preview,
-            { backgroundColor: theme.colors.surfaceContainerLow },
+            previewThemeStyle,
           ]}
         >
           <AppText color="mutedText" style={styles.previewLabel} variant="labelMd">
@@ -309,6 +318,18 @@ export default function BillEditorScreen() {
       </KeyboardScreen>
     </>
   );
+}
+
+function getCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+  };
+}
+
+function getPreviewThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLow,
+  };
 }
 
 const styles = StyleSheet.create({
