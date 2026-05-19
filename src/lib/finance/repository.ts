@@ -49,8 +49,10 @@ import type {
   SmsReviewSnapshot,
   SmsTransactionCandidateRecord,
   SmsCandidatePage,
+  SmsCandidateQuery,
   SyncSnapshot,
   SyncStatus,
+  TransactionListQuery,
   TransactionRecord,
   TrajectoryPointRecord,
   TrajectoryRecord,
@@ -792,17 +794,234 @@ export function reorderSmsSourceProfiles(profileIds: string[]) {
   });
 }
 
+type QueryParam = number | string | null;
+
+function buildSmsCandidateQuery(query: SmsCandidateQuery | undefined): {
+  params: QueryParam[];
+  whereClause: string;
+} {
+  const where = ["c.status = 'pending'"];
+  const params: QueryParam[] = [];
+
+  if (query?.direction) {
+    where.push("c.direction = ?");
+    params.push(query.direction);
+  }
+
+  if (query?.categoryId) {
+    where.push("c.category_id = ?");
+    params.push(query.categoryId);
+  }
+
+  if (query?.aiStatus) {
+    where.push("c.classification_status = ?");
+    params.push(query.aiStatus);
+  }
+
+  if (query?.classificationSource) {
+    where.push("c.classification_source = ?");
+    params.push(query.classificationSource);
+  }
+
+  if (query?.parserKey) {
+    where.push("c.parser_key = ?");
+    params.push(query.parserKey);
+  }
+
+  if (query?.source) {
+    if (isSmsParserFilter(query.source)) {
+      where.push("c.parser_key = ?");
+      params.push(query.source);
+    } else if (isSmsClassificationStatusFilter(query.source)) {
+      where.push("c.classification_status = ?");
+      params.push(query.source);
+    } else {
+      where.push("c.classification_source = ?");
+      params.push(query.source);
+    }
+  }
+
+  const search = normalizeSearchText(query?.searchText);
+  if (search) {
+    const searchConditions = [
+      "LOWER(c.merchant) LIKE ?",
+      "LOWER(COALESCE(c.merchant_key, '')) LIKE ?",
+      "LOWER(COALESCE(c.notes, '')) LIKE ?",
+      "LOWER(COALESCE(c.reference, '')) LIKE ?",
+      "LOWER(COALESCE(c.currency, '')) LIKE ?",
+      "LOWER(COALESCE(c.direction, '')) LIKE ?",
+      "LOWER(COALESCE(c.parser_key, '')) LIKE ?",
+      "LOWER(COALESCE(c.classification_status, '')) LIKE ?",
+      "LOWER(COALESCE(c.classification_source, '')) LIKE ?",
+      "LOWER(COALESCE(cat.label, '')) LIKE ?",
+      "LOWER(COALESCE(c.suggested_category_label, '')) LIKE ?",
+      "LOWER(m.sender) LIKE ?",
+      "LOWER(m.body) LIKE ?",
+    ];
+    const pattern = `%${search}%`;
+    params.push(...searchConditions.map(() => pattern));
+
+    const numericSearch = normalizeAmountSearch(search);
+    if (numericSearch) {
+      searchConditions.push("CAST(ABS(c.amount_minor) AS TEXT) LIKE ?");
+      params.push(`%${numericSearch.digits}%`);
+      searchConditions.push("CAST(ABS(c.amount_minor / 100.0) AS TEXT) LIKE ?");
+      params.push(`%${numericSearch.decimal}%`);
+      searchConditions.push("ABS(c.amount_minor) = ?");
+      params.push(numericSearch.amountMinor);
+    }
+
+    where.push(`(${searchConditions.join(" OR ")})`);
+  }
+
+  return {
+    params,
+    whereClause: `WHERE ${where.join(" AND ")}`,
+  };
+}
+
+function buildTransactionListQuery(query: TransactionListQuery): {
+  params: QueryParam[];
+  whereClause: string;
+} {
+  const where = ["t.deleted_at IS NULL", "t.user_id = ?"];
+  const params: QueryParam[] = [DEFAULT_USER_ID];
+
+  if (query.direction) {
+    where.push("t.direction = ?");
+    params.push(query.direction);
+  }
+
+  if (query.categoryId) {
+    where.push("t.category_id = ?");
+    params.push(query.categoryId);
+  }
+
+  if (query.source) {
+    where.push("t.source = ?");
+    params.push(query.source);
+  }
+
+  const search = normalizeSearchText(query.searchText);
+  if (search) {
+    const searchConditions = [
+      "LOWER(t.merchant) LIKE ?",
+      "LOWER(COALESCE(t.notes, '')) LIKE ?",
+      "LOWER(COALESCE(t.reference, '')) LIKE ?",
+      "LOWER(COALESCE(t.account_label, '')) LIKE ?",
+      "LOWER(COALESCE(t.currency, '')) LIKE ?",
+      "LOWER(COALESCE(t.direction, '')) LIKE ?",
+      "LOWER(COALESCE(t.source, '')) LIKE ?",
+      "LOWER(COALESCE(c.label, '')) LIKE ?",
+    ];
+    const pattern = `%${search}%`;
+    params.push(...searchConditions.map(() => pattern));
+
+    const numericSearch = normalizeAmountSearch(search);
+    if (numericSearch) {
+      searchConditions.push("CAST(ABS(t.amount_minor) AS TEXT) LIKE ?");
+      params.push(`%${numericSearch.digits}%`);
+      searchConditions.push("CAST(ABS(t.amount_minor / 100.0) AS TEXT) LIKE ?");
+      params.push(`%${numericSearch.decimal}%`);
+      searchConditions.push("ABS(t.amount_minor) = ?");
+      params.push(numericSearch.amountMinor);
+    }
+
+    where.push(`(${searchConditions.join(" OR ")})`);
+  }
+
+  return {
+    params,
+    whereClause: `WHERE ${where.join(" AND ")}`,
+  };
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function normalizeAmountSearch(value: string) {
+  const normalized = value.replace(/,/g, "").replace(/[^\d.-]/g, "");
+  const amount = Number(normalized);
+
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  return {
+    amountMinor: Math.round(Math.abs(amount) * 100),
+    decimal: String(Math.abs(amount)),
+    digits: normalized.replace(/\D/g, ""),
+  };
+}
+
+function isSmsParserFilter(value: string) {
+  return value === "bank-credit-debit" || value === "mpesa";
+}
+
+function isSmsClassificationStatusFilter(value: string) {
+  return (
+    value === "classified" ||
+    value === "failed" ||
+    value === "not_needed" ||
+    value === "processing" ||
+    value === "queued"
+  );
+}
+
+function getSmsCandidateOrderBy(sortKey: SmsCandidateQuery["sortKey"]) {
+  switch (sortKey) {
+    case "amount_high":
+      return "ORDER BY ABS(c.amount_minor) DESC, c.occurred_at DESC";
+    case "amount_low":
+      return "ORDER BY ABS(c.amount_minor) ASC, c.occurred_at DESC";
+    case "confidence_high":
+      return "ORDER BY COALESCE(c.classification_confidence, c.confidence, 0) DESC, c.occurred_at DESC";
+    case "merchant_az":
+      return "ORDER BY LOWER(c.merchant) ASC, c.occurred_at DESC";
+    case "oldest":
+      return "ORDER BY c.occurred_at ASC, c.created_at ASC";
+    case "newest":
+    default:
+      return "ORDER BY c.occurred_at DESC, c.created_at DESC";
+  }
+}
+
+function getTransactionOrderBy(sortKey: TransactionListQuery["sortKey"]) {
+  switch (sortKey) {
+    case "amount_high":
+      return "ORDER BY ABS(t.amount_minor) DESC, t.transaction_at DESC";
+    case "amount_low":
+      return "ORDER BY ABS(t.amount_minor) ASC, t.transaction_at DESC";
+    case "merchant_az":
+      return "ORDER BY LOWER(t.merchant) ASC, t.transaction_at DESC";
+    case "oldest":
+      return "ORDER BY t.transaction_at ASC, t.updated_at ASC";
+    case "newest":
+    default:
+      return "ORDER BY t.transaction_at DESC, t.updated_at DESC";
+  }
+}
+
 export function listPendingSmsCandidatesPage(input: {
+  query?: SmsCandidateQuery;
   limit: number;
   offset: number;
 }): SmsCandidatePage {
   ensureSmsCandidateAiColumns();
+  const { params, whereClause } = buildSmsCandidateQuery(input.query);
   const totalCount =
     sqliteDatabase.getFirstSync<{ count: number }>(
       `SELECT COUNT(*) AS count
-       FROM sms_transaction_candidates
-       WHERE status = 'pending'`,
+       FROM sms_transaction_candidates c
+       INNER JOIN sms_messages m
+         ON m.id = c.sms_message_id
+       LEFT JOIN categories cat
+         ON cat.id = c.category_id
+       ${whereClause}`,
+      params,
     )?.count ?? 0;
+  const orderBy = getSmsCandidateOrderBy(input.query?.sortKey);
 
   const items = sqliteDatabase.getAllSync<SmsTransactionCandidateRecord>(
     `SELECT
@@ -839,11 +1058,11 @@ export function listPendingSmsCandidatesPage(input: {
        ON m.id = c.sms_message_id
      LEFT JOIN categories cat
        ON cat.id = c.category_id
-     WHERE c.status = 'pending'
-     ORDER BY c.occurred_at DESC, c.created_at DESC
+     ${whereClause}
+     ${orderBy}
      LIMIT ?
      OFFSET ?`,
-    [Math.max(input.limit, 1), Math.max(input.offset, 0)],
+    [...params, Math.max(input.limit, 1), Math.max(input.offset, 0)],
   );
 
   return {
@@ -854,7 +1073,11 @@ export function listPendingSmsCandidatesPage(input: {
   };
 }
 
-export function listTransactions(searchText?: string): TransactionRecord[] {
+export function listTransactions(
+  queryInput: TransactionListQuery = {},
+): TransactionRecord[] {
+  const { params, whereClause } = buildTransactionListQuery(queryInput);
+  const orderBy = getTransactionOrderBy(queryInput.sortKey);
   const query = `
     SELECT
       t.id,
@@ -877,18 +1100,11 @@ export function listTransactions(searchText?: string): TransactionRecord[] {
       t.version
     FROM transactions t
     LEFT JOIN categories c ON c.id = t.category_id
-    WHERE t.deleted_at IS NULL
-      AND t.user_id = ?
-      AND (? = '' OR LOWER(t.merchant) LIKE '%' || LOWER(?) || '%' OR LOWER(COALESCE(t.notes, '')) LIKE '%' || LOWER(?) || '%')
-    ORDER BY t.transaction_at DESC, t.updated_at DESC
+    ${whereClause}
+    ${orderBy}
   `;
 
-  return sqliteDatabase.getAllSync<TransactionRecord>(query, [
-    DEFAULT_USER_ID,
-    searchText?.trim() ?? "",
-    searchText?.trim() ?? "",
-    searchText?.trim() ?? "",
-  ]);
+  return sqliteDatabase.getAllSync<TransactionRecord>(query, params);
 }
 
 export function getTransactionById(id: string) {
@@ -2585,8 +2801,12 @@ export function getFinanceSnapshot(args: {
   smsPermissionState: SmsPermissionState;
   searchText?: string;
   status: SyncSnapshot["status"];
+  transactionQuery?: TransactionListQuery;
 }): FinanceSnapshot {
-  const transactions = listTransactions(args.searchText);
+  const transactions = listTransactions({
+    ...args.transactionQuery,
+    searchText: args.transactionQuery?.searchText ?? args.searchText,
+  });
 
   return {
     ai: getAiSnapshot({

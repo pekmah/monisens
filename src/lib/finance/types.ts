@@ -17,6 +17,53 @@ export type SyncEntityType =
   | "attachment";
 export type TransactionDirection = "expense" | "income";
 export type TransactionSource = "manual" | "sms" | "statement" | "import";
+export type TransactionSortKey =
+  | "amount_high"
+  | "amount_low"
+  | "merchant_az"
+  | "newest"
+  | "oldest";
+export type SmsCandidateSortKey =
+  | "amount_high"
+  | "amount_low"
+  | "confidence_high"
+  | "merchant_az"
+  | "newest"
+  | "oldest";
+export type SmsCandidateSourceFilter =
+  | "ai"
+  | "bank-credit-debit"
+  | "classified"
+  | "failed"
+  | "merchant_memory"
+  | "mpesa"
+  | "not_needed"
+  | "processing"
+  | "queued"
+  | "rule"
+  | "user";
+export type SmsCandidateClassificationSource =
+  | "ai"
+  | "merchant_memory"
+  | "rule"
+  | "user";
+export type TransactionListQuery = {
+  categoryId?: string | null;
+  direction?: TransactionDirection | null;
+  searchText?: string;
+  sortKey?: TransactionSortKey;
+  source?: TransactionSource | null;
+};
+export type SmsCandidateQuery = {
+  aiStatus?: AiClassificationStatus | null;
+  categoryId?: string | null;
+  classificationSource?: SmsCandidateClassificationSource | null;
+  direction?: TransactionDirection | null;
+  parserKey?: SmsSourceParserKey | null;
+  searchText?: string;
+  sortKey?: SmsCandidateSortKey;
+  source?: SmsCandidateSourceFilter | null;
+};
 export type BillCadence = "once" | "weekly" | "monthly" | "yearly";
 export type BillStatus = "active" | "archived";
 export type BillOccurrenceStatus = "due" | "paid" | "skipped";

@@ -22,9 +22,11 @@ import type {
   FinanceSnapshot,
   IgnoredSmsMessageRecord,
   SmsCandidatePage,
+  SmsCandidateQuery,
   SmsImportResult,
   SmsPermissionState,
   SmsSourceProfileGroup,
+  TransactionListQuery,
   TransactionRecord,
 } from "@/lib/finance/types";
 import {
@@ -80,7 +82,10 @@ import { appQueryClient } from "@/lib/query-client";
 import { stopSmsListening, subscribeToSmsEvents } from "@/lib/sms-native";
 
 const FinanceContext = createContext<{
-  acceptSmsCandidate: (id: string) => Promise<string>;
+  acceptSmsCandidate: (
+    id: string,
+    options?: { refresh?: boolean },
+  ) => Promise<string>;
   archiveBill: (id: string) => Promise<void>;
   approveCategoryProposal: (id: string) => Promise<void>;
   createBill: (input: CreateBillInput) => Promise<string>;
@@ -109,7 +114,10 @@ const FinanceContext = createContext<{
   deleteCategory: (id: string) => Promise<void>;
   deleteSmsSourceProfile: (id: string) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-  dismissSmsCandidate: (id: string) => Promise<void>;
+  dismissSmsCandidate: (
+    id: string,
+    options?: { refresh?: boolean },
+  ) => Promise<void>;
   duplicateSmsSourceProfile: (id: string) => Promise<string>;
   error: string | null;
   importSmsInbox: (input?: {
@@ -129,6 +137,7 @@ const FinanceContext = createContext<{
   ) => Promise<BillTransactionMatchRecord[]>;
   loadIgnoredSmsMessages: (limit?: number) => Promise<IgnoredSmsMessageRecord[]>;
   loadPendingSmsCandidatesPage: (input: {
+    query?: SmsCandidateQuery;
     limit: number;
     offset: number;
   }) => Promise<SmsCandidatePage>;
@@ -146,6 +155,8 @@ const FinanceContext = createContext<{
   setSmsListenerEnabled: (enabled: boolean) => Promise<void>;
   setSearchText: (value: string) => void;
   snapshot: FinanceSnapshot | null;
+  transactionQuery: TransactionListQuery;
+  setTransactionQuery: (query: TransactionListQuery) => void;
   updateCategory: (input: {
     color: string;
     id: string;
@@ -184,18 +195,28 @@ const FinanceContext = createContext<{
 export function FinanceProvider({ children }: PropsWithChildren) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchText, setSearchText] = useState("");
+  const [transactionQuery, setTransactionQuery] = useState<TransactionListQuery>({
+    sortKey: "newest",
+  });
   const [snapshot, setSnapshot] = useState<FinanceSnapshot | null>(null);
   const [smsPermissionState, setSmsPermissionState] =
     useState<SmsPermissionState>("unknown");
   const onlineRef = useRef(true);
   const readyRef = useRef(false);
   const remoteAiSyncRef = useRef(false);
-  const searchRef = useRef(searchText);
+  const transactionQueryRef = useRef(transactionQuery);
+  const searchText = transactionQuery.searchText ?? "";
 
   useEffect(() => {
-    searchRef.current = searchText;
-  }, [searchText]);
+    transactionQueryRef.current = transactionQuery;
+  }, [transactionQuery]);
+
+  const setSearchText = useCallback((value: string) => {
+    setTransactionQuery((current) => ({
+      ...current,
+      searchText: value,
+    }));
+  }, []);
 
   const refresh = useCallback(
     async (nextSearchText?: string) => {
@@ -217,7 +238,14 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       const nextSnapshot = loadFinanceSnapshot({
         isOnline: onlineRef.current,
         smsPermissionState: permissionState,
-        searchText: nextSearchText ?? searchRef.current,
+        searchText: nextSearchText,
+        transactionQuery:
+          nextSearchText === undefined
+            ? transactionQueryRef.current
+            : {
+                ...transactionQueryRef.current,
+                searchText: nextSearchText,
+              },
       });
       setSnapshot(nextSnapshot);
     },
@@ -456,7 +484,11 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   }, [refresh]);
 
   const loadPendingSmsCandidatesPage = useCallback(
-    async (input: { limit: number; offset: number }) =>
+    async (input: {
+      query?: SmsCandidateQuery;
+      limit: number;
+      offset: number;
+    }) =>
       loadPendingSmsCandidatesPageUseCase(input),
     [],
   );
@@ -509,15 +541,21 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   );
 
   const acceptSmsCandidate = useCallback(
-    async (id: string) => {
+    async (id: string, options?: { refresh?: boolean }) => {
       const transactionId = acceptSmsCandidateReviewUseCase(id);
-      await refresh();
+      if (options?.refresh !== false) {
+        await refresh();
+      }
 
       if (onlineRef.current) {
         // AI feedback sync should improve future classifications, but it must not
         // block the local accept flow after the transaction has already been saved.
         void runAiJobQueueUseCase()
-          .then(() => refresh())
+          .then(() => {
+            if (options?.refresh !== false) {
+              void refresh();
+            }
+          })
           .catch((queueError) => {
             console.warn(
               "[MonisensAI] feedback sync failed after accepting SMS candidate",
@@ -531,9 +569,11 @@ export function FinanceProvider({ children }: PropsWithChildren) {
   );
 
   const dismissSmsCandidate = useCallback(
-    async (id: string) => {
+    async (id: string, options?: { refresh?: boolean }) => {
       dismissSmsCandidateReviewUseCase(id);
-      await refresh();
+      if (options?.refresh !== false) {
+        await refresh();
+      }
     },
     [refresh],
   );
@@ -607,7 +647,7 @@ export function FinanceProvider({ children }: PropsWithChildren) {
     }
 
     void refresh();
-  }, [ready, refresh, searchText, smsPermissionState]);
+  }, [ready, refresh, transactionQuery, smsPermissionState]);
 
   useEffect(() => {
     const unsubscribe = subscribeToAiQueueUpdates(() => {
@@ -768,6 +808,8 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       setSmsListenerEnabled,
       setSearchText,
       snapshot,
+      transactionQuery,
+      setTransactionQuery,
       updateCategory: updateLocalCategory,
       unlinkBillOccurrencePayment: unlinkLocalBillOccurrence,
       updateBill: updateLocalBill,
@@ -809,8 +851,10 @@ export function FinanceProvider({ children }: PropsWithChildren) {
       retryAiJobs,
       runAiQueue,
       searchText,
+      setSearchText,
       setSmsListenerEnabled,
       snapshot,
+      transactionQuery,
       updateLocalCategory,
       unlinkLocalBillOccurrence,
       updateLocalBill,

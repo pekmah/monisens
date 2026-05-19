@@ -62,8 +62,10 @@ import type {
   CreateBillInput,
   CreateTransactionInput,
   FinanceSnapshot,
+  SmsCandidateQuery,
   SmsCandidatePage,
   SmsPermissionState,
+  TransactionListQuery,
 } from "@/lib/finance/types";
 import {
   ensureSmsListeningPermission,
@@ -97,6 +99,7 @@ export function loadFinanceSnapshot(input: {
   isOnline: boolean;
   smsPermissionState: SmsPermissionState;
   searchText?: string;
+  transactionQuery?: TransactionListQuery;
 }): FinanceSnapshot {
   const aiCapabilities = getAiTransportCapabilities();
   generateUpcomingBillOccurrences();
@@ -107,6 +110,7 @@ export function loadFinanceSnapshot(input: {
     isOnline: input.isOnline,
     smsPermissionState: input.smsPermissionState,
     searchText: input.searchText,
+    transactionQuery: input.transactionQuery,
     status: "idle",
   });
 }
@@ -454,6 +458,7 @@ export function reprocessIgnoredSmsMessageUseCase(messageId: string) {
 }
 
 export function loadPendingSmsCandidatesPageUseCase(input: {
+  query?: SmsCandidateQuery;
   limit: number;
   offset: number;
 }): SmsCandidatePage {

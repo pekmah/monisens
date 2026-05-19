@@ -16,11 +16,13 @@ import { useFinance } from "@/lib/finance";
 export default function TransactionsScreen() {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { error, ready, searchText, setSearchText, snapshot } = useFinance();
+  const { error, ready, setTransactionQuery, snapshot, transactionQuery } =
+    useFinance();
   const contentBottomPadding =
     Sizes["15xl"] + Math.max(insets.bottom, Spacing.lg);
   const transactionSections = snapshot?.transactionSections ?? [];
   const totalCount = snapshot?.transactions.length ?? 0;
+  const categories = snapshot?.categories ?? [];
   const footerMessage = !ready
     ? "Preparing local ledger..."
     : error
@@ -32,8 +34,9 @@ export default function TransactionsScreen() {
   // owner and keeps keyboard tap handling attached to that owner.
   const listHeader = (
     <TransactionsToolbar
-      onSearchTextChange={setSearchText}
-      searchText={searchText}
+      categories={categories}
+      onQueryChange={setTransactionQuery}
+      query={transactionQuery}
       totalCount={totalCount}
     />
   );

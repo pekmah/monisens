@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppFlashList } from "@/components/base";
 import { Sizes, Spacing } from "@/constants/theme";
@@ -43,6 +43,7 @@ export function TransactionList({
   sections,
 }: TransactionListProps) {
   const rows = useMemo(() => flattenTransactionSections(sections), [sections]);
+  const contentThemeStyle = getContentThemeStyle(contentBottomPadding);
 
   const renderItem = useCallback(({ item }: { item: TransactionListRow }) => {
     if (item.type === "section") {
@@ -65,7 +66,7 @@ export function TransactionList({
     <AppFlashList
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: contentBottomPadding },
+        contentThemeStyle,
       ]}
       data={rows}
       ItemSeparatorComponent={TransactionListSeparator}
@@ -77,6 +78,12 @@ export function TransactionList({
       scrollEnabled
     />
   );
+}
+
+function getContentThemeStyle(paddingBottom: number): ViewStyle {
+  return {
+    paddingBottom,
+  };
 }
 
 function TransactionListSeparator() {

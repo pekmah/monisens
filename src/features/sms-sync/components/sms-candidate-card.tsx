@@ -1,10 +1,17 @@
-import { router } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, View, type ViewStyle } from "react-native";
 
 import { AppButton, AppText, CategorySelectField } from "@/components/base";
+import { useToast } from "@/components/toast";
 import { font } from "@/constants/fonts";
-import { FontSizes, LineHeights, Radii, Sizes, Spacing } from "@/constants/theme";
+import {
+  FontSizes,
+  LineHeights,
+  Radii,
+  Sizes,
+  Spacing,
+  type AppTheme,
+} from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import type { SmsTransactionCandidateRecord } from "@/lib/finance";
 import { formatMoney } from "@/lib/finance";
@@ -25,7 +32,11 @@ export function SmsCandidateCard({
   onDismissCandidate: (id: string) => Promise<void>;
 }) {
   const theme = useAppTheme();
+  const { showToast } = useToast();
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+  const cardThemeStyle = getCardThemeStyle(theme);
+  const proposalCardThemeStyle = getProposalCardThemeStyle(theme);
   // Prefer the current category table label over the stale label stored on the
   // parsed candidate, because users can rename categories while SMS remain pending.
   const resolvedCategoryLabel =
@@ -47,9 +58,36 @@ export function SmsCandidateCard({
     void onApproveCategoryProposal(candidate.categoryProposalId);
   }, [candidate.categoryProposalId, onApproveCategoryProposal]);
 
-  const handleDismiss = useCallback(() => {
-    void onDismissCandidate(candidate.id);
-  }, [candidate.id, onDismissCandidate]);
+  const handleDismiss = useCallback(async () => {
+    if (isDismissing) {
+      return;
+    }
+
+    setIsDismissing(true);
+    try {
+      await onDismissCandidate(candidate.id);
+      showToast({
+        description: `${candidate.merchant} was removed from the review queue.`,
+        title: "SMS dismissed",
+        variant: "success",
+      });
+    } catch (dismissError) {
+      console.warn("[MonisensSMS] failed to dismiss SMS candidate", dismissError);
+      Alert.alert(
+        "Could not dismiss SMS",
+        dismissError instanceof Error
+          ? dismissError.message
+          : "Please try dismissing this SMS again.",
+      );
+      setIsDismissing(false);
+    }
+  }, [
+    candidate.id,
+    candidate.merchant,
+    isDismissing,
+    onDismissCandidate,
+    showToast,
+  ]);
 
   const handleAccept = useCallback(async () => {
     if (isAccepting) {
@@ -58,10 +96,14 @@ export function SmsCandidateCard({
 
     setIsAccepting(true);
     try {
-      // Accepting creates a real transaction, so take the user directly to the
-      // transaction detail screen once the review candidate is converted.
-      const transactionId = await onAcceptCandidate(candidate.id);
-      router.replace(`/transactions/${transactionId}`);
+      // Accepting should keep the reviewer in the queue so they can continue
+      // processing nearby messages without bouncing into transaction detail.
+      await onAcceptCandidate(candidate.id);
+      showToast({
+        description: `${candidate.merchant} was added to transactions.`,
+        title: "Transaction accepted",
+        variant: "success",
+      });
     } catch (acceptError) {
       console.warn("[MonisensSMS] failed to accept SMS candidate", acceptError);
       Alert.alert(
@@ -73,18 +115,10 @@ export function SmsCandidateCard({
     } finally {
       setIsAccepting(false);
     }
-  }, [candidate.id, isAccepting, onAcceptCandidate]);
+  }, [candidate.id, candidate.merchant, isAccepting, onAcceptCandidate, showToast]);
 
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: theme.colors.surfaceContainerLowest,
-          borderColor: theme.colors.outlineVariant,
-        },
-      ]}
-    >
+    <View style={[styles.card, cardThemeStyle]}>
       <View style={styles.cardHeader}>
         <View style={styles.cardCopy}>
           <AppText style={styles.cardTitle} variant="titleMd">
@@ -151,15 +185,7 @@ export function SmsCandidateCard({
       {candidate.categoryProposalId && candidate.suggestedCategoryLabel ? (
         // Proposed categories are reviewed inline so the user can add them
         // before accepting the parsed transaction.
-        <View
-          style={[
-            styles.proposalCard,
-            {
-              backgroundColor: theme.colors.surfaceContainer,
-              borderColor: theme.colors.outlineVariant,
-            },
-          ]}
-        >
+        <View style={[styles.proposalCard, proposalCardThemeStyle]}>
           <AppText style={styles.cardTitle} variant="titleMd">
             New category proposed
           </AppText>
@@ -182,12 +208,14 @@ export function SmsCandidateCard({
 
       <View style={styles.actions}>
         <AppButton
+          disabled={isAccepting || isDismissing}
+          loading={isDismissing}
           onPress={handleDismiss}
           title="Dismiss"
           variant="secondary"
         />
         <AppButton
-          disabled={!candidate.categoryId || isAccepting}
+          disabled={!candidate.categoryId || isAccepting || isDismissing}
           loading={isAccepting}
           onPress={() => void handleAccept()}
           title="Accept"
@@ -195,6 +223,20 @@ export function SmsCandidateCard({
       </View>
     </View>
   );
+}
+
+function getCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainerLowest,
+    borderColor: theme.colors.outlineVariant,
+  };
+}
+
+function getProposalCardThemeStyle(theme: AppTheme): ViewStyle {
+  return {
+    backgroundColor: theme.colors.surfaceContainer,
+    borderColor: theme.colors.outlineVariant,
+  };
 }
 
 function Meta({ label, value }: { label: string; value: string }) {

@@ -6,4 +6,5 @@ export {
   LoadingFooter,
   LoadingState,
 } from "./review-states";
+export { SmsReviewToolbar } from "./review-toolbar";
 export { SmsCandidateCard } from "./sms-candidate-card";

@@ -21,34 +21,39 @@ import {
 } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import type {
+  AiClassificationStatus,
   CategoryRecord,
+  SmsCandidateClassificationSource,
+  SmsCandidateQuery,
+  SmsCandidateSortKey,
+  SmsSourceParserKey,
   TransactionDirection,
-  TransactionListQuery,
-  TransactionSortKey,
-  TransactionSource,
 } from "@/lib/finance";
 
 import type { ComponentProps, ReactNode } from "react";
 
-type FilterChipProps = {
+type ReviewFilterChipProps = {
   label: string;
   onPress: () => void;
   selected: boolean;
 };
 
-export type TransactionsToolbarProps = {
+export type SmsReviewToolbarProps = {
   categories: CategoryRecord[];
-  query: TransactionListQuery;
+  draftSearchText: string;
+  onDraftSearchTextChange: (value: string) => void;
+  onQueryChange: (query: SmsCandidateQuery) => void;
+  query: SmsCandidateQuery;
   totalCount: number;
-  onQueryChange: (query: TransactionListQuery) => void;
 };
 
-const sortOptions: { label: string; value: TransactionSortKey }[] = [
+const sortOptions: { label: string; value: SmsCandidateSortKey }[] = [
   { label: "Newest", value: "newest" },
   { label: "Oldest", value: "oldest" },
   { label: "High amount", value: "amount_high" },
   { label: "Low amount", value: "amount_low" },
   { label: "A-Z", value: "merchant_az" },
+  { label: "Confidence", value: "confidence_high" },
 ];
 
 const directionOptions: { label: string; value: TransactionDirection | null }[] =
@@ -58,32 +63,52 @@ const directionOptions: { label: string; value: TransactionDirection | null }[] 
     { label: "Expense", value: "expense" },
   ];
 
-const sourceOptions: { label: string; value: TransactionSource | null }[] = [
-  { label: "All", value: null },
-  { label: "Manual", value: "manual" },
-  { label: "SMS", value: "sms" },
-  { label: "Import", value: "import" },
-  { label: "Statement", value: "statement" },
+const aiStatusOptions: { label: string; value: AiClassificationStatus | null }[] =
+  [
+    { label: "All", value: null },
+    { label: "Classified", value: "classified" },
+    { label: "Queued", value: "queued" },
+    { label: "Processing", value: "processing" },
+    { label: "Failed", value: "failed" },
+    { label: "Rule-based", value: "not_needed" },
+  ];
+
+const sourceOptions: {
+  label: string;
+  parserKey?: SmsSourceParserKey | null;
+  classificationSource?: SmsCandidateClassificationSource | null;
+}[] = [
+  { label: "All", parserKey: null, classificationSource: null },
+  { label: "M-PESA", parserKey: "mpesa" },
+  { label: "Bank", parserKey: "bank-credit-debit" },
+  { label: "Rules", classificationSource: "rule" },
+  { label: "AI", classificationSource: "ai" },
+  { label: "Memory", classificationSource: "merchant_memory" },
+  { label: "User", classificationSource: "user" },
 ];
 
-export function TransactionsToolbar({
+export function SmsReviewToolbar({
   categories,
+  draftSearchText,
+  onDraftSearchTextChange,
+  onQueryChange,
   query,
   totalCount,
-  onQueryChange,
-}: TransactionsToolbarProps) {
+}: SmsReviewToolbarProps) {
   const theme = useAppTheme();
   const searchThemeStyle = getSearchThemeStyle(theme);
   const inputThemeStyle = getInputThemeStyle(theme);
   const hasFilters = Boolean(
-    query.searchText ||
+    draftSearchText ||
       query.direction ||
       query.categoryId ||
-      query.source ||
+      query.aiStatus ||
+      query.classificationSource ||
+      query.parserKey ||
       (query.sortKey && query.sortKey !== "newest"),
   );
 
-  function updateQuery(nextQuery: Partial<TransactionListQuery>) {
+  function updateQuery(nextQuery: Partial<SmsCandidateQuery>) {
     onQueryChange({
       ...query,
       ...nextQuery,
@@ -91,18 +116,19 @@ export function TransactionsToolbar({
   }
 
   function clearFilters() {
+    onDraftSearchTextChange("");
     onQueryChange({ sortKey: "newest" });
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={styles.titleWrap}>
-          <AppText color="primary" variant="labelMd">
-            TRANSACTIONS
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCopy}>
+          <AppText color="primary" style={styles.overline} variant="labelMd">
+            REVIEW QUEUE
           </AppText>
           <AppText style={styles.title} variant="titleMd">
-            {totalCount} transaction{totalCount === 1 ? "" : "s"}
+            {totalCount} candidate{totalCount === 1 ? "" : "s"}
           </AppText>
         </View>
         {hasFilters ? (
@@ -118,68 +144,88 @@ export function TransactionsToolbar({
       <View style={[styles.search, searchThemeStyle]}>
         <Feather color={theme.colors.outline} name="search" size={Sizes["2xl"]} />
         <TextInput
-          onChangeText={(value) => updateQuery({ searchText: value })}
-          placeholder="Search name, amount, category, note"
+          onChangeText={onDraftSearchTextChange}
+          placeholder="Search sender, name, amount, SMS"
           placeholderTextColor={theme.colors.outline}
           selectionColor={theme.colors.primary}
           style={[styles.input, inputThemeStyle]}
-          value={query.searchText ?? ""}
+          value={draftSearchText}
         />
       </View>
 
-      <FilterSection icon="sliders" label="Sort">
+      <ReviewFilterSection icon="sliders" label="Sort">
         {sortOptions.map((option) => (
-          <FilterChip
+          <ReviewFilterChip
             key={option.value}
             label={option.label}
             onPress={() => updateQuery({ sortKey: option.value })}
             selected={(query.sortKey ?? "newest") === option.value}
           />
         ))}
-      </FilterSection>
+      </ReviewFilterSection>
 
-      <FilterSection icon="filter" label="Direction">
+      <ReviewFilterSection icon="filter" label="Direction">
         {directionOptions.map((option) => (
-          <FilterChip
+          <ReviewFilterChip
             key={option.value ?? "all"}
             label={option.label}
             onPress={() => updateQuery({ direction: option.value })}
             selected={(query.direction ?? null) === option.value}
           />
         ))}
-      </FilterSection>
+      </ReviewFilterSection>
 
-      <FilterSection icon="layers" label="Source">
-        {sourceOptions.map((option) => (
-          <FilterChip
+      <ReviewFilterSection icon="activity" label="AI status">
+        {aiStatusOptions.map((option) => (
+          <ReviewFilterChip
             key={option.value ?? "all"}
             label={option.label}
-            onPress={() => updateQuery({ source: option.value })}
-            selected={(query.source ?? null) === option.value}
+            onPress={() => updateQuery({ aiStatus: option.value })}
+            selected={(query.aiStatus ?? null) === option.value}
           />
         ))}
-      </FilterSection>
+      </ReviewFilterSection>
 
-      <FilterSection icon="tag" label="Category">
-        <FilterChip
+      <ReviewFilterSection icon="radio" label="Source">
+        {sourceOptions.map((option) => (
+          <ReviewFilterChip
+            key={`${option.parserKey ?? ""}:${option.classificationSource ?? ""}:${option.label}`}
+            label={option.label}
+            onPress={() =>
+              updateQuery({
+                classificationSource: option.classificationSource ?? null,
+                parserKey: option.parserKey ?? null,
+              })
+            }
+            selected={
+              (query.parserKey ?? null) === (option.parserKey ?? null) &&
+              (query.classificationSource ?? null) ===
+                (option.classificationSource ?? null)
+            }
+          />
+        ))}
+      </ReviewFilterSection>
+
+      <ReviewFilterSection icon="tag" label="Category">
+        <ReviewFilterChip
           label="All"
           onPress={() => updateQuery({ categoryId: null })}
           selected={!query.categoryId}
         />
         {categories.map((category) => (
-          <FilterChip
+          <ReviewFilterChip
             key={category.id}
             label={category.label}
             onPress={() => updateQuery({ categoryId: category.id })}
             selected={query.categoryId === category.id}
           />
         ))}
-      </FilterSection>
+      </ReviewFilterSection>
     </View>
   );
 }
 
-function FilterSection({
+function ReviewFilterSection({
   children,
   icon,
   label,
@@ -210,7 +256,11 @@ function FilterSection({
   );
 }
 
-function FilterChip({ label, onPress, selected }: FilterChipProps) {
+function ReviewFilterChip({
+  label,
+  onPress,
+  selected,
+}: ReviewFilterChipProps) {
   const theme = useAppTheme();
   const chipThemeStyle = getChipThemeStyle(theme, selected);
 
@@ -296,17 +346,17 @@ const styles = StyleSheet.create({
   filterSection: {
     gap: Spacing.sm,
   },
-  headerRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: Spacing.md,
-    justifyContent: "space-between",
-  },
   input: {
     flex: 1,
     fontSize: FontSizes.md,
     minWidth: Sizes.none,
     padding: Sizes.none,
+  },
+  overline: {
+    fontFamily: font.bold,
+    fontSize: FontSizes.xs,
+    letterSpacing: 1,
+    lineHeight: LineHeights.xs,
   },
   search: {
     alignItems: "center",
@@ -316,11 +366,17 @@ const styles = StyleSheet.create({
     minHeight: Sizes["11xl"],
     paddingHorizontal: Spacing.lg,
   },
-  title: {
-    fontFamily: font.headerSemiBold,
-  },
-  titleWrap: {
+  summaryCopy: {
     flex: 1,
     gap: Sizes.xs,
+  },
+  summaryRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: Spacing.md,
+    justifyContent: "space-between",
+  },
+  title: {
+    fontFamily: font.headerSemiBold,
   },
 });
